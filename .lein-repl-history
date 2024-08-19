@@ -1,0 +1,7 @@
+--enable=fast-csg \
+exit
+(def thumb-style "default")(def nrows 5)(def ncols 6)(load-file "src/dactyl.clj")
+exit
+(def thumb-style "default")(def nrows 5)(def ncols 6)(load-file "src/dactyl.clj")
+(def thumb-style "cf")(def nrows 5)(def ncols 6)(load-file "src/dactyl.clj")
+(def thumb-style "cf")(load-file "src/dactyl.clj")

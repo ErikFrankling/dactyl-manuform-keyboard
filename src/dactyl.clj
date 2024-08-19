@@ -62,12 +62,38 @@
 (def hook2-placement-x 25)
 (def hook2-placement-y (+ -50.65 1))
 
+(def WHI [255/255 255/255 255/255 1])
+(def RED [255/255 0/255 0/255 1])
+(def ORA [220/255 128/255 0/255 1])
+(def YEL [220/255 255/255 0/255 1])
+(def GRE [0/255 255/255 0/255 1])
+(def DGR [21/255 71/255 52/255 1])
+(def CYA [0/255 255/255 255/255 1])
+(def BLU [0/255 128/255 255/255 1])
+(def NBL [0/255 0/255 255/255 1])
+(def PUR [127/255 0/255 255/255 1])
+(def PIN [255/255 0/255 255/255 1])
+(def MAG [255/255 0/255 127/255 1])
+(def BRO [102/255 51/255 0/255 1])
+(def BLA [0/255 0/255 0/255 1])
+(def GRY [128/255 128/255 128/255 1])
+(def SLT [112/255 128/255 144/255 1])
+
+(def D_BLU [0/255 128/255 255/255 0.5])
+(def D_RED [255/255 0/255 0/255 0.5])
+(def D_PUR [127/255 0/255 255/255 0.75])
+(def D_GRE [4/255 106/255 56/255 0.5])
+(def D_BLA [112/255 128/255 144/255 0.85])
+
+(def TRIANGLE-RES 3)
+(def SQUARE-RES 4)
+(def ROUND-RES 30)
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Shape parameters ;;
 ;;;;;;;;;;;;;;;;;;;;;;
-
-;(def nrows 6)
-;(def ncols 6)
+(def north_facing true)
+(def nrows 5)
+(def ncols 6)
 
 (def α (/ π 12))                        ; curvature of the columns
 (def β (/ π 36))                        ; curvature of the rows
@@ -80,7 +106,7 @@
 (def last-15u-row 3)                    ; controls which should be the last row to have 1.5u keys on the outer column
 (def extra-row false)                   ; adds an extra bottom row to the outer columns
 (def inner-column false)                ; adds an extra inner column (two less rows than nrows)
-;(def thumb-style "tightly")             ; toggles between "default", "mini", "cf" and "tightly" thumb cluster
+(def thumb-style "default")             ; toggles between "default", "mini", "cf" and "tightly" thumb cluster
 
 (def column-style :standard)
 
@@ -112,7 +138,7 @@
 
 ;; Settings for column-style == :fixed
 ;; The defaults roughly match Maltron settings
-;; http://patentimages.storage.googleapis.com/EP0219944A2/imgf0002.png
+;; http://patentimages
 ;; Fixed-z overrides the z portion of the column ofsets above.
 ;; NOTE: THIS DOESN'T WORK QUITE LIKE I'D HOPED.
 (def fixed-angles [(deg2rad 10) (deg2rad 10) 0 0 0 (deg2rad -15) (deg2rad -15)])
@@ -130,6 +156,20 @@
 ; Show keycaps on the keyboard
 (def show-caps false)
 
+;select only one of the following
+(def plate-holes false)         ; for SU120 square PCB with screw holes in corners
+(def use_flex_pcb_holder false) ; optional for flexible PCB, ameobas don't really benefit from this
+(def use_hotswap_holder true)   ; manufactured hotswap holder
+(def use_solderless false)      ; solderless switch plate, RESIN PRINTER RECOMMENDED!
+(def rmtz_solderless_inserts false) ; solderless switch plate, RESIN PRINTER RECOMMENDED!
+
+(def wire-diameter 1.75)        ; outer diameter of silicone covered 22awg ~1.75mm 26awg ~1.47mm)
+(def hotswap-diode-cutout false)
+
+(keyword "kailh-hotswap")
+(keyword "gateron-hotswap")
+(keyword "outemu-hotswap")
+(def hotswap-type "kailh-hotswap")
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; General variables ;;
 ;;;;;;;;;;;;;;;;;;;;;;;
@@ -144,164 +184,695 @@
 ;; Switch Hole ;;
 ;;;;;;;;;;;;;;;;;
 
-(def keyswitch-height 14.15)
-(def keyswitch-width 14.15)
+(def keyswitch-height 13.8)
+(def keyswitch-width 13.8)
+(def plate-thickness 5)
 
-(def sa-profile-key-height 12.7)
-
-(def plate-thickness 3.5)
-(def side-nub-thickness 4)
 (def retention-tab-thickness 1.5)
-(def retention-tab-hole-thickness (- (+ plate-thickness 0.5) retention-tab-thickness))
-(def mount-width (+ keyswitch-width 3.2))
-(def mount-height (+ keyswitch-height 2.7))
+(def retention-tab-hole-thickness (- plate-thickness retention-tab-thickness))
+(def mount-width (+ keyswitch-width 3))
+(def mount-height (+ keyswitch-height 3))
 
-(def socket-height-adjust 1.2)
+(def holder-x mount-width)
+(def holder-thickness    (/ (- holder-x keyswitch-width) 2))
+(def holder-y            (+ keyswitch-height (* holder-thickness 2)))
+(def swap-z              3)
+; (def web-thickness plate-thickness)
+(def square-led-size     6)
 
-(def hot-socket
-
-  (difference
-   
-    (difference
-      (translate [0 0 (- -2.05 (/ socket-height-adjust 2))]
-        (cube (+ keyswitch-height 3.6) (+ keyswitch-width 3) (+ 3.1 socket-height-adjust))
+(def switch-teeth-cutout
+  (let [
+        ; cherry, gateron, kailh switches all have a pair of tiny "teeth" that stick out
+        ; on the top and bottom, this gives those teeth somewhere to press into
+        teeth-x        4.5
+        teeth-y        0.75
+        teeth-z-down   1.65
+        teeth-z        (- plate-thickness teeth-z-down)
+        teeth-x-offset 0
+        teeth-y-offset (+ (/ keyswitch-height 2) (/ teeth-y 2.01))
+        teeth-z-offset (- plate-thickness (/ teeth-z 1.99) teeth-z-down)
+       ]
+      (->> (cube teeth-x teeth-y teeth-z)
+           (translate [teeth-x-offset teeth-y-offset teeth-z-offset])
       )
-      (translate [0 0 (- (/ socket-height-adjust -2) 0.5)]
-        (cube keyswitch-height keyswitch-width socket-height-adjust)
-      )
-    )
-
-    ; corner hot-fix for tightly
-    (rotate [0 (deg2rad 25) (deg2rad 40)]
-      (translate [16.5 3 5]
-        (cube 10 10 10)
-      )
-    )
-
-    ; hot-swap socket hole
-    (scale [1 1 1]
-    (translate [0.075 4.815 (- -2.75 socket-height-adjust)]
-      (union
-        ; cube1
-        (cube 119.6 114.1 2)
-
-        ; circle1
-        (translate [-4.8 0.55 0]
-          (binding [*fn* 100] (cylinder 1.5 2))
-        )
-
-        (translate [-3.35 -1.75 0]
-          (difference
-            ;cube2
-            (cube 5.9 4.6 2)
-            ;circle2
-            (translate [2.95 -2.55 0]
-              (binding [*fn* 100] (cylinder 2.25 2))
-            )
-          )
-        )
-        (translate [6 0.325 0]
-          (cube 6 1.8 2)
-        )
-        (translate [-6 -2.215 0]
-          (cube 6 1.8 2)
-        )
-        (translate [2.475 0.325 0]
-          (binding [*fn* 200] (cylinder 1.7 20))
-        )
-        (translate [-3.875 -2.215 0]
-          (binding [*fn* 200] (cylinder 1.7 20))
-        )
-      )
-    )
-    (binding [*fn* 100] (cylinder 2.3 20))
-    (translate [-5.08 0 0]
-      (binding [*fn* 100] (cylinder 1.1 20))
-      (translate [2 -0.4 0]
-        (cube 4 4 10)
-      )
-    )
-    (translate [5.08 0 0]
-      (binding [*fn* 100] (cylinder 1.1 20))
-    )
-    )
-    (translate [0 (/ (+ keyswitch-width 3) -4) (- -2.05 socket-height-adjust) ]
-      (cube (+ keyswitch-height 3.6) (/ (+ keyswitch-width 3) 2) 3.1)
-    )
-    ;(binding [*fn* 50] (cylinder 2 2))
   )
 )
 
-(def fill-caps
-  (hull
-  (union
-    (translate [0 0 (- 9.75 0)]
-      (cube 18.3 18.3 0.1)
-    )
-    (translate [0 0 (- 17.25 0)]
-      (cube 12.2 12.2 0.1)
+(def hotswap-x2          (* (/ holder-x 3) 1.85))
+(def hotswap-z           (+ swap-z 0.5));thickness of kailh hotswap holder + some margin of printing error (0.5mm)
+(def hotswap-cutout-z-offset -2.6)
+(def hotswap-cutout-2-x-offset (- (- (/ holder-x 4) 0.70)))
+(def hotswap-cutout-3-y-offset 9.4)
+(def hotswap-case-cutout-x-extra 2.75)
+
+(def web-thickness (if use_hotswap_holder (+ (+ plate-thickness hotswap-z) hotswap-cutout-z-offset) plate-thickness))
+(def keyswitch-below-plate (- 8 web-thickness)) ; approx space needed below keyswitch, ameoba is 6mm
+
+(defn make-hotswap-holder [hotswap-y1
+                           hotswap-cutout-1-y-offset
+                           hotswap-y2
+                           hotswap-cutout-2-y-offset]
+  ;irregularly shaped hot swap holder
+  ;    ____________
+  ;  |  _|_______|    |  hotswap offset from out edge of holder with room to solder
+  ; y1 |_|_O__  \ _  y2  hotswap pin
+  ;    |      \O_|_|  |  hotswap pin
+  ;    |  o  O  o  |     fully supported friction holes
+  ;    |    ___    |  
+  ;    |    |_|    |  space for LED under SMD or transparent switches
+  ;
+  ; can be described as having two sizes in the y dimension depending on the x coordinate
+  (let [
+        swap-x              holder-x
+        swap-y              holder-y
+        
+        swap-offset-x       0
+        swap-offset-y       (/ (- holder-y swap-y) 2)
+        swap-offset-z       (- (/ swap-z 2)) ; the bottom of the hole.
+        swap-holder         (->> (cube swap-x (/ (+ swap-y 4) 2) swap-z)
+                                 (translate [swap-offset-x 
+                                             (+ swap-offset-y (/ (+ swap-y 4) 4))
+                                             swap-offset-z]))
+        hotswap-x           holder-x ;cutout full width of holder instead of only 14.5mm
+        hotswap-x3          (/ holder-x 4)
+        hotswap-x4          (/ holder-x 4)
+        hotswap-y3          6
+
+        hotswap-cutout-1-x-offset 0
+        hotswap-cutout-3-x-offset (- (/ holder-x 2) (/ hotswap-x3 2.01))
+        hotswap-cutout-4-x-offset (- (/ hotswap-x3 2.02) (/ holder-x 1.98))
+
+        hotswap-cutout-led-x-offset 0
+        hotswap-cutout-led-y-offset -6
+
+        hotswap-cutout-1    (->> (hull (->> (square hotswap-x (- hotswap-y1 0.4))
+                                            (extrude-linear {:height 0.001 :twist 0 :convexity 0}))
+                                       (->> (square hotswap-x (+ hotswap-y1 0.1))
+                                            (extrude-linear {:height 0.001 :twist 0 :convexity 0})
+                                            (translate [0 0 hotswap-z])
+                                       )
+                                 )
+                                 (translate [hotswap-cutout-1-x-offset 
+                                             hotswap-cutout-1-y-offset 
+                                             (+ hotswap-cutout-z-offset (/ hotswap-z -2))])
+                                 ; (color PIN)
+                            )
+        hotswap-cutout-2    (->> (hull (->> (square hotswap-x2 (- hotswap-y2 0.4))
+                                            (extrude-linear {:height 0.001 :twist 0 :convexity 0}))
+                                       (->> (square hotswap-x2 (+ hotswap-y2 0.1))
+                                            (extrude-linear {:height 0.001 :twist 0 :convexity 0})
+                                            (translate [0 0 hotswap-z])
+                                       )
+                                 )
+                                 (translate [hotswap-cutout-2-x-offset 
+                                             hotswap-cutout-2-y-offset 
+                                             (+ hotswap-cutout-z-offset (/ hotswap-z -2))])
+                                 ; (color RED)
+                            )
+        hotswap-cutout-3    (->> (cube hotswap-x3 hotswap-y3 hotswap-z)
+                                 (translate [ hotswap-cutout-3-x-offset
+                                              hotswap-cutout-3-y-offset
+                                              hotswap-cutout-z-offset])
+                                 ; (color ORA)
+                            )
+        hotswap-cutout-4    (->> (cube hotswap-x4 hotswap-y3 hotswap-z)
+                                 (translate [ hotswap-cutout-4-x-offset
+                                              hotswap-cutout-3-y-offset
+                                              hotswap-cutout-z-offset])
+                                 ; (color BLU)
+                            )
+        hotswap-led-cutout  (->> (cube square-led-size square-led-size 10)
+                                 (translate [ hotswap-cutout-led-x-offset
+                                              hotswap-cutout-led-y-offset
+                                              hotswap-cutout-z-offset]))
+
+        diode-wire-dia 0.75
+        diode-wire-channel-depth (* 1.5 diode-wire-dia)
+        diode-body-width 1.95
+        diode-body-length 4
+        diode-corner-hole (->> (cylinder diode-wire-dia (* 2 hotswap-z))
+                              (with-fn ROUND-RES)
+                              (translate [-6.55 -6.75 0]))
+        diode-view-hole   (->> (cube (/ diode-body-width 2) (/ diode-body-length 1.25) (* 2 hotswap-z))
+                              (translate [-6.25 -3 0]))
+        diode-socket-hole-left (->> (cylinder diode-wire-dia hotswap-z)
+                                    (with-fn ROUND-RES)
+                                    (translate [-6.85 1.5 0]))
+        diode-channel-pin-left (->> (cube diode-wire-dia 2.5 diode-wire-channel-depth)
+                                    (rotate (deg2rad 10) [0 0 1])
+                                    (translate [-6.55  0 (* -0.49 diode-wire-channel-depth)])
+                               )
+        diode-socket-hole-right (->> (cylinder diode-wire-dia hotswap-z)
+                                    (with-fn ROUND-RES)
+                                    (translate [6.85 3.5 0]))
+        diode-channel-pin-right (->> (cube diode-wire-dia 6.5 diode-wire-channel-depth)
+                                    (rotate (deg2rad -5) [0 0 1])
+                                    (translate [6.55  0 (* -0.49 diode-wire-channel-depth)])
+                               )
+        diode-channel-wire (translate [-6.25 -5.75 (* -0.49 diode-wire-channel-depth)]
+                               (cube diode-wire-dia 2 diode-wire-channel-depth))
+        diode-body (translate [-6.25 -3.0 (* -0.49 diode-body-width)]
+                       (cube diode-body-width diode-body-length diode-body-width))
+        diode-cutout (union diode-corner-hole
+                            diode-view-hole
+                            diode-channel-wire
+                            diode-body)
+
+        ; for the main axis
+        main-axis-hole      (->> (cylinder (/ 4.1 2) 10)
+                                 (with-fn ROUND-RES))
+        pin-hole            (->> (cylinder (/ 3.3 2) 10)
+                                 (with-fn ROUND-RES))
+        plus-hole           (translate [-3.81 2.54 0] pin-hole)
+        minus-hole          (translate [ 2.54 5.08 0] pin-hole)
+        friction-hole       (->> (cylinder (/ 1.95 2) 10)
+                                 (with-fn ROUND-RES))
+        friction-hole-right (translate [ 5 0 0] friction-hole)
+        friction-hole-left  (translate [-5 0 0] friction-hole)
+        hotswap-shape
+            (difference 
+                       ; (union 
+                               swap-holder
+                               ; (debug diode-channel-wire))
+                        main-axis-hole
+                        plus-hole
+                        minus-hole
+                        friction-hole-left
+                        friction-hole-right
+                        (if hotswap-diode-cutout
+                             (union diode-cutout
+                                    diode-socket-hole-left
+                                    diode-channel-pin-left
+                                    (mirror [1 0 0] diode-cutout)
+                                    diode-socket-hole-right
+                                    diode-channel-pin-right
+                             )
+                        )
+
+                        hotswap-cutout-1
+                        hotswap-cutout-2
+                        hotswap-cutout-3
+                        hotswap-cutout-4
+                        (translate [0 2 0.85]
+                          hotswap-cutout-3)
+                        (translate [0 2 0.85]
+                          hotswap-cutout-4)
+                        (translate [-5.08 0 0]
+                        (translate [2 -0.4 0]
+                          (cube 4 4 10)
+                        ))
+                        hotswap-led-cutout)
+       ]
+       (if north_facing
+           (->> hotswap-shape
+                (mirror [1 0 0])
+                (mirror [0 1 0])
+           )
+           hotswap-shape
+       )
+  )
+)
+
+(defn hotswap-case-cutout [mirror-internals]
+  (let [hotswap-x3          2
+        hotswap-cutout-1-x-offset (/ holder-x 3.99)
+        hotswap-cutout-3-x-offset (- (/ holder-x 2) (/ hotswap-x3 2.01))
+        hotswap-cutout-3-y-offset 5.5
+        hotswap-cutout-4-x-offset (- (/ hotswap-x3 2.01) (/ holder-x 2))
+        hotswap-cutout-4-y-offset 4.8
+        shape (union
+                ; (translate [0.15 
+                ;             4.6 ; min of all the hotswap-cutout-1-y-offset values
+                ;             hotswap-cutout-z-offset] 
+                ;            (cube (+ keyswitch-width hotswap-case-cutout-x-extra) 
+                ;                  3.8 ; min of all the hotswap-y1 values - 0.4 overhangs
+                ;                  hotswap-z))
+                ; (translate [hotswap-cutout-2-x-offset 
+                ;             3.8 ; min of all the hotswap-cutout-2-y-offset values
+                ;             hotswap-cutout-z-offset]
+                ;            (cube hotswap-x2 
+                ;                  5.7 ; min of all the hotswap-y2 values - 0.4 overhangs
+                ;                  hotswap-z))
+                (->> (cube hotswap-x3 5.9 hotswap-z)
+                                 (translate [ hotswap-cutout-3-x-offset
+                                              hotswap-cutout-3-y-offset
+                                              hotswap-cutout-z-offset])
+                                 ; (color YEL)
+                )
+                (->> (cube hotswap-x3 7.5 hotswap-z)
+                                 (translate [ hotswap-cutout-4-x-offset
+                                              hotswap-cutout-4-y-offset
+                                              hotswap-cutout-z-offset])
+                                 ; (color GRE)
+                            )
+              )
+        rotated
+             (if north_facing
+                 (->> shape
+                      (mirror [1 0 0])
+                      (mirror [0 1 0])
+                 )
+                 shape
+             )
+        mirrored 
+          (->> (if mirror-internals
+                   (->> rotated (mirror [1 0 0]))
+                   rotated))
+        ]
+    mirrored
+  )
+)
+
+(def rmtz_plate_cutout
+  (let [hotswap-x3          2
+        hotswap-cutout-1-x-offset (/ holder-x 3.99)
+        hotswap-cutout-3-x-offset (- (/ holder-x 2) (/ hotswap-x3 2.01))
+        hotswap-cutout-3-y-offset 5.5
+        hotswap-cutout-4-x-offset (- (/ hotswap-x3 2.01) (/ holder-x 2))
+        hotswap-cutout-4-y-offset 4.8
+        shape (union
+                ; (translate [0.15 
+                ;             4.6 ; min of all the hotswap-cutout-1-y-offset values
+                ;             hotswap-cutout-z-offset] 
+                ;            (cube (+ keyswitch-width hotswap-case-cutout-x-extra) 
+                ;                  3.8 ; min of all the hotswap-y1 values - 0.4 overhangs
+                ;                  hotswap-z))
+                ; (translate [hotswap-cutout-2-x-offset 
+                ;             3.8 ; min of all the hotswap-cutout-2-y-offset values
+                ;             hotswap-cutout-z-offset]
+                ;            (cube hotswap-x2 
+                ;                  5.7 ; min of all the hotswap-y2 values - 0.4 overhangs
+                ;                  hotswap-z))
+                (->> (cube hotswap-x3 5.9 hotswap-z)
+                                 (translate [ hotswap-cutout-3-x-offset
+                                              hotswap-cutout-3-y-offset
+                                              hotswap-cutout-z-offset])
+                                 ; (color YEL)
+                )
+                (->> (cube hotswap-x3 7.5 hotswap-z)
+                                 (translate [ hotswap-cutout-4-x-offset
+                                              hotswap-cutout-4-y-offset
+                                              hotswap-cutout-z-offset])
+                                 ; (color GRE)
+                            )
+              )
+        rotated
+             (if north_facing
+                 (->> shape
+                      (mirror [1 0 0])
+                      (mirror [0 1 0])
+                 )
+                 shape
+             )
+        ]
+    rotated
+  )
+)
+
+(def rmtz_plate_holder
+  (let [
+        rmtz-holder-x        holder-x
+        rmtz-holder-y        holder-y ; should be less than or equal to holder-y
+        rmtz-holder-z        5; //TODO increase to 6 and fix clip-in-cuts to static height
+        rmtz-holder-offse-x 0
+        rmtz-holder-offset-y (/ (- holder-y rmtz-holder-y) 2)
+        rmtz-holder-offset-z (- (/ rmtz-holder-z 2)) ; the bottom of the hole. 
+        switch_socket_base  (cube rmtz-holder-x 
+                                  rmtz-holder-y 
+                                  rmtz-holder-z)
+
+        switch_socket_base_cutout  (cube (- rmtz-holder-x 2.7)
+                                         (- rmtz-holder-y 2.7)
+                                         (+ rmtz-holder-z 0.1)
+                                   )
+        rmtz-holder-cutout-offset-y (- (/ rmtz-holder-y 2) 1.35)
+        slide_in_cuts (->> (cylinder (/ 1.9 2) (+ rmtz-holder-z 0.1))
+                           (with-fn ROUND-RES))
+
+        rmtz-holder-clip-offset-x (- (/ rmtz-holder-x 2) 1.05)
+        rmtz-holder-clip-offset-y (- (/ rmtz-holder-y 2) 2.7)
+        rmtz-holder-clip-offset-z (- (- rmtz-holder-offset-z) 3)
+        clip_in_cuts (->> (cylinder (/ 2 2) (- rmtz-holder-z 2))
+                           (with-fn ROUND-RES))
+
+        rmtz_plate_holder_shape 
+            (translate [rmtz-holder-offse-x 
+                        rmtz-holder-offset-y
+                        rmtz-holder-offset-z]
+                (difference (union switch_socket_base
+                                   ; (debug slide_in_cuts) ; may have to disable below to appear
+                            )
+                            switch_socket_base_cutout
+                            (translate [ 3.5 (- rmtz-holder-cutout-offset-y) 0 ] slide_in_cuts)
+                            (translate [ 3.5    rmtz-holder-cutout-offset-y  0 ] slide_in_cuts)
+                            (translate [-3.5    rmtz-holder-cutout-offset-y  0 ] slide_in_cuts)
+                            (translate [-3.5 (- rmtz-holder-cutout-offset-y) 0 ] slide_in_cuts)
+
+                            (translate [   rmtz-holder-clip-offset-x (- rmtz-holder-clip-offset-y)  rmtz-holder-clip-offset-z ] clip_in_cuts)
+                            (translate [   rmtz-holder-clip-offset-x     rmtz-holder-clip-offset-y  rmtz-holder-clip-offset-z ] clip_in_cuts)
+                            (translate [(- rmtz-holder-clip-offset-x)    rmtz-holder-clip-offset-y  rmtz-holder-clip-offset-z ] clip_in_cuts)
+                            (translate [(- rmtz-holder-clip-offset-x) (- rmtz-holder-clip-offset-y) rmtz-holder-clip-offset-z ] clip_in_cuts)
+            ))
+       ]
+       (if north_facing
+           (->> rmtz_plate_holder_shape
+                (mirror [1 0 0])
+                (mirror [0 1 0])
+           )
+           rmtz_plate_holder_shape
+       )
+  )
+)
+
+(def gateron-hotswap-holder
+  (make-hotswap-holder 4.5  ;hotswap-y1
+                       4.55 ;hotswap-cutout-1-y-offset
+                       6.0  ;hotswap-y2
+                       3.8  ;hotswap-cutout-2-y-offset
+  )
+)
+
+(def outemu-hotswap-holder
+  (make-hotswap-holder 4.6  ;hotswap-y1
+                       4.35 ;hotswap-cutout-1-y-offset
+                       4.6  ;hotswap-y2
+                       3.0  ;hotswap-cutout-2-y-offset
+  )
+)
+
+(def hotswap-holder
+  (make-hotswap-holder 4.1  ;hotswap-y1
+                       4.815 ;hotswap-cutout-1-y-offset
+                       6.1  ;hotswap-y2
+                       1.815  ;hotswap-cutout-2-y-offset
+  )
+)
+
+(def solderless-plate
+  (let [
+        solderless-x        holder-x
+        solderless-y        holder-y ; should be less than or equal to holder-y
+        solderless-z        4;
+        solderless-cutout-z (* 1.01 solderless-z)
+        solderless-offset-x 0
+        solderless-offset-y (/ (- holder-y solderless-y) 2)
+        solderless-offset-z (- (/ solderless-z 2)) ; the bottom of the hole. 
+        switch_socket_base  (cube solderless-x 
+                                  solderless-y 
+                                  solderless-z)
+        wire-channel-diameter (+ 0.3 wire-diameter); elegoo saturn prints 1.75mm tubes ~1.62mm
+        wire-channel-offset  (- (/ solderless-z 2) (/ wire-channel-diameter 3))
+        led-cutout-x-offset  0
+        led-cutout-y-offset -6
+        led-cutout          (translate [0 -6 0] 
+                                 (cube square-led-size 
+                                       square-led-size 
+                                       solderless-cutout-z))
+        main-axis-hole      (->> (cylinder (/ 4.1 2) solderless-cutout-z)
+                                 (with-fn ROUND-RES))
+        plus-hole           (->> (cylinder (/ 1.55 2) solderless-cutout-z)
+                                 (with-fn ROUND-RES)
+                                 (scale [1 0.85 1])
+                                 (translate [-3.81 2.54 0]))
+        minus-hole          (->> (cylinder (/ 1.55 2) solderless-cutout-z)
+                                 (with-fn ROUND-RES)
+                                 (scale [1 0.85 1])
+                                 (translate [2.54 5.08 0]))
+        friction-hole       (->> (cylinder (/ 1.95 2) solderless-cutout-z)
+                                 (with-fn ROUND-RES))
+        friction-hole-right (translate [ 5 0 0] friction-hole)
+        friction-hole-left  (translate [-5 0 0] friction-hole)
+
+        diode-wire-dia 0.75
+        diode-row-hole   (->> (cylinder (/ diode-wire-dia 2) solderless-cutout-z)
+                              (with-fn ROUND-RES)
+                              (translate [3.65 3.0 0]))
+        diode-pin  (translate [-3.15 3.0 (/ solderless-z 2)]
+                       (cube 2 diode-wire-dia 2))
+        diode-wire (translate [2.75 3.0 (/ solderless-z 2)]
+                       (cube 2 diode-wire-dia 2))
+        diode-body (translate [-0.2 3.0 (/ solderless-z 2)]
+                       (cube 4 1.95 3))
+
+        row-wire-radius             (/ wire-channel-diameter 2)
+        row-wire-channel-end-radius 3.25
+        row-wire-channel-end (->> (circle row-wire-radius)
+                                  (with-fn 50)
+                                  (translate [row-wire-channel-end-radius 0 0])
+                                  (extrude-rotate {:angle 90})
+                                  (rotate (deg2rad 90) [1 0 0])
+                                  (translate [(+ 7 (- row-wire-channel-end-radius)) 
+                                              5.08 
+                                              (+ wire-channel-offset (- row-wire-channel-end-radius))])
+                             )
+        row-wire-channel-ends (translate [8 5.08 -1.15] 
+                                  (union (cube 3 wire-channel-diameter solderless-z)
+                                         (translate [(/ 3 -2) 0 0] 
+                                             (->> (cylinder (/ wire-channel-diameter 2) solderless-z)
+                                                  (with-fn 50)))))
+        row-wire-channel-cube-end (union (->> (cube wire-channel-diameter
+                                                    wire-channel-diameter 
+                                                    wire-channel-diameter)
+                                              (translate [6 5.08 (+ 0 wire-channel-offset)])
+                                         )
+                                         (->> (cylinder (/ wire-channel-diameter 2)
+                                                        wire-channel-diameter)
+                                              (with-fn 50)
+                                              (translate [5 5.08 (+ (/ wire-channel-diameter 2) wire-channel-offset)])
+                                         )
+                                  )
+        row-wire-channel-curve-radius 45
+        row-wire-channel (union
+                             (->> (circle row-wire-radius)
+                                  (with-fn 50)
+                                  (translate [row-wire-channel-curve-radius 0 0])
+                                  (extrude-rotate {:angle 90})
+                                  (rotate (deg2rad 90) [1 0 0])
+                                  (rotate (deg2rad -45) [0 1 0])
+                                  (translate [0 
+                                              5.08 
+                                              (+ 0.25 wire-channel-offset (- row-wire-channel-curve-radius))])
+                             )
+                             row-wire-channel-end
+                             row-wire-channel-ends
+                             row-wire-channel-cube-end
+                             (->> (union row-wire-channel-end
+                                         row-wire-channel-ends
+                                         row-wire-channel-cube-end
+                                  )
+                                  (mirror [1 0 0])
+                             )
+                         )
+        col-wire-radius       (+ 0.025 (/ wire-channel-diameter 2))
+        col-wire-ends-radius  (+ 0.1   (/ wire-channel-diameter 2))
+        col-wire-ends-zoffset    0.0725 ; should be diff of two magic numbers above
+        col-wire-channel-curve-radius 15
+        col-wire-channel (->> (circle col-wire-radius)
+                              (with-fn 50)
+                              (translate [col-wire-channel-curve-radius 0 0])
+                              (extrude-rotate {:angle 90})
+                              (rotate (deg2rad 135) [0 0 1])
+                              (translate [(+ 3.10 col-wire-channel-curve-radius) 
+                                          0 
+                                          (- 0.1 wire-channel-offset)])
+                         )
+
+        solderless-shape 
+            (translate [solderless-offset-x 
+                        solderless-offset-y
+                        solderless-offset-z]
+                (difference (union switch_socket_base
+                                   ;(debug row-wire-channel-cube-end) ; may have to disable below to appear
+                            )
+                            main-axis-hole
+                            plus-hole
+                            minus-hole
+                            friction-hole-left
+                            friction-hole-right
+                            diode-row-hole
+                            row-wire-channel
+                            col-wire-channel
+                            diode-pin
+                            diode-body
+                            diode-wire
+                            led-cutout
+            ))
+       ]
+       (if north_facing
+           (->> solderless-shape
+                (mirror [1 0 0])
+                (mirror [0 1 0])
+           )
+           solderless-shape
+       )
+  )
+)
+
+(def switch-corner-cutout
+  (let [ cutout-radius 0.75
+         cutout (->> (cylinder cutout-radius 99)
+                     (with-fn 15))
+         cutout-x (- (/ keyswitch-width  2) (/ cutout-radius 2))
+         cutout-y (- (/ keyswitch-height 2) (/ cutout-radius 2))
+       ]
+    (union
+      (translate [   cutout-x    cutout-y  0] cutout)
+      (translate [(- cutout-x)   cutout-y  0] cutout)
+      (translate [   cutout-x (- cutout-y) 0] cutout)
     )
   )
+)
+
+(def amoeba-x 1) ; mm width TODO wtf?
+(def amoeba-y 16) ; mm high
+(def keyswitch-below-clearance (/ keyswitch-below-plate -2))
+
+; https://github.com/e3w2q/su120-keyboard
+; https://github.com/joshreve/dactyl-keyboard/blob/dd706f14f9aacfc429160bf5b03b688fdb5ce2f4/src/generate_configuration.py#L434
+(def plate_holes_width 14.3)
+(def plate_holes_height 14.3)
+(def plate_holes_diameter 1.6)
+(def plate_holes_depth 20.0)
+(def switch-plate-holes-cutout
+  (let [ cutout-radius (/ plate_holes_diameter 2)
+         cutout (->> (cylinder cutout-radius 99)
+                     (with-fn 50))
+         cutout-x (/ plate_holes_width  2)
+         cutout-y (/ plate_holes_height 2)
+       ]
+    (union
+      (translate [   cutout-x    cutout-y  0] cutout)
+      (translate [(- cutout-x)   cutout-y  0] cutout)
+      (translate [   cutout-x (- cutout-y) 0] cutout)
+    )
+  )
+)
+
+(def switch-bottom
+  (translate [0 0 keyswitch-below-clearance] 
+             (cube amoeba-y 
+                   amoeba-y 
+                   keyswitch-below-plate)))
+
+(def flex-pcb-holder
+  (let [pcb-holder-x (* 0.99 amoeba-y); keyswitch-width
+        pcb-holder-y 5
+        pcb-holder-z 3 ;keyswitch-below-plate
+        pcb-holder-z-offset (- (* 2 keyswitch-below-clearance) (/ pcb-holder-z 2))
+        minus-hole          (->> (cylinder (/ 4 2) 99)
+                                 (with-fn 15)
+                                 (translate [2.54 5.08 0]))
+       ]
+  (union
+        (difference
+           (translate [0 
+                   (/ keyswitch-height 2)
+                   pcb-holder-z-offset]
+              (difference (cube pcb-holder-x pcb-holder-y pcb-holder-z)
+                          ;cut triangle out of pcb clip
+                          (->> (cube (* 1.01 pcb-holder-x) pcb-holder-y pcb-holder-z)
+                              (translate [0 0 (/ pcb-holder-z -1.25)])
+                              (rotate (deg2rad -45) [1 0 0])
+                          )
+              )
+           )
+           minus-hole 
+        )
+        (translate [0 
+                    (+ (/ keyswitch-height 2) (/ pcb-holder-y 3) )
+                    keyswitch-below-clearance]
+            (color YEL (cube pcb-holder-x 
+                             (/ pcb-holder-y 3) 
+                             (* 3 keyswitch-below-plate)))
+        )
+   )))
+
+ ; (render ;tell scad to try and cache this repetitive code, kinda screws up previews
+(defn make-single-plate [mirror-internals hotswap-type]
+  (let [top-wall (->> (cube mount-height 1.5 (+ plate-thickness 0.85))
+                      (translate [0
+                                  (+ (/ 1.5 2) (/ keyswitch-height 2))
+                                  (/ (- plate-thickness 0.85) 2)]))
+        left-wall (->> (cube 1.5 mount-width (+ plate-thickness 0.85))
+                       (translate [(+ (/ 1.5 2) (/ keyswitch-width 2))
+                                   0
+                                   (/ (- plate-thickness 0.85) 2)]))
+        plate-half (difference (union top-wall left-wall)
+                               switch-teeth-cutout
+                               ; (if plate-holes switch-plate-holes-cutout
+                               ;                 switch-corner-cutout)
+                   )
+        plate (union plate-half
+                  (->> plate-half
+                       (mirror [1 0 0])
+                       (mirror [0 1 0]))
+                  (if use_hotswap_holder
+                    (case hotswap-type "kailh-hotswap"   hotswap-holder
+                                       "gateron-hotswap" gateron-hotswap-holder
+                                       "outemu-hotswap"  outemu-hotswap-holder))
+                  (if use_solderless solderless-plate)
+                  (if rmtz_solderless_inserts rmtz_plate_holder)
+              )
+       ]
+    (->> (if mirror-internals
+           (->> plate (mirror [1 0 0]))
+           plate
+         )
+    )
   )
 )
 
 (def single-plate
-  (let [top-wall (->> (cube (+ keyswitch-width 3) 1.5 (+ plate-thickness 0.5))
-                      (translate [0
-                                  (+ (/ 1.5 2) (/ keyswitch-height 2))
-                                  (- (/ plate-thickness 2) 0.25)]))
-        left-wall (->> (cube 1.8 (+ keyswitch-height 3) (+ plate-thickness 0.5))
-                       (translate [(+ (/ 1.8 2) (/ keyswitch-width 2))
-                                   0
-                                   (- (/ plate-thickness 2) 0.25)]))
-        side-nub (->> (binding [*fn* 30] (cylinder 1 2.75))
-                      (rotate (/ π 2) [1 0 0])
-                      (translate [(+ (/ keyswitch-width 2)) 0 1])
-                      (hull (->> (cube 1.5 2.75 side-nub-thickness)
-                                 (translate [(+ (/ 1.5 2) (/ keyswitch-width 2))
-                                             0
-                                             (/ side-nub-thickness 2)])))
-                      (translate [0 0 (- plate-thickness side-nub-thickness)]))
-        plate-half (union top-wall left-wall (if create-side-nubs? (with-fn 100 side-nub)))
-        top-nub (->> (cube 5 5 retention-tab-hole-thickness)
-                     (translate [(+ (/ keyswitch-width 2.5)) 0 (- (/ retention-tab-hole-thickness 2) 0.5)]))
-        top-nub-pair (union top-nub
-                            (->> top-nub
-                                 (mirror [1 0 0])
-                                 (mirror [0 1 0])))]
-    (difference
-     (union plate-half
-            (->> plate-half
-                 (mirror [1 0 0])
-                 (mirror [0 1 0]))
-            (if hot-swap (mirror [0 0 0] hot-socket))
-            (if show-caps fill-caps)
+  (make-single-plate false hotswap-type)
+)
+
+(def single-plate-blank
+    (union 
+        (translate [0 0  (/ plate-thickness 2)]
+            (cube mount-width
+                  mount-height
+                  (+ plate-thickness 0.001)
             )
-     (->>
-      top-nub-pair
-      (rotate (/ π 2) [0 0 1])))))
+        )
+        (if use_hotswap_holder (translate [0 0 (- (/ hotswap-z 2))] 
+                            (cube mount-width 
+                                  mount-height 
+                                  hotswap-z)))
+        (if use_solderless (hull solderless-plate))
+        (if rmtz_solderless_inserts rmtz_plate_cutout)
+    )
+)
 
-;(spit "things/cap_test.scad"
-;      (write-scad
-;        (union
-;          single-plate
-;        )
-;      )
-;)
+(defn single-plate-cut [mirror-internals]
+  (difference 
+    single-plate-blank
+    (single-plate mirror-internals)
+  )
+)
 
 
-;(spit "things/socket_test.scad"
+(spit "things/cap_test.scad"
+     (write-scad
+       (union
+         single-plate
+       )
+     )
+)
+
+
+; (spit "things/socket_test.scad"
 ;      (write-scad
 ;        (union
 ;          hot-socket
 ;        )
 ;      )
-;)
+; )
 
 ;;;;;;;;;;;;;;;;
 ;; SA Keycaps ;;
 ;;;;;;;;;;;;;;;;
 
+(def sa-profile-key-height 12.7)
 (def sa-length 18.415)
 (def sa-double-length 37.5)
 (def sa-cap {1 (let [bl2 (/ sa-length 2)
@@ -492,8 +1063,8 @@
 ;; Web Connectors ;;
 ;;;;;;;;;;;;;;;;;;;;
 
-(def web-thickness 4)
-(def post-size 0.1)
+; (def web-thickness 6.45)
+(def post-size 0.4)
 (def web-post (->> (cube post-size post-size web-thickness)
                    (translate [0 0 (+ (/ web-thickness -2)
                                       plate-thickness)])))
@@ -668,12 +1239,14 @@
    (thumb-mr-place shape)
    (thumb-ml-place shape)
    (thumb-br-place shape)
-   (thumb-bl-place shape)))
-
-(defn thumb-15x-layout [shape]
-  (union
+   (thumb-bl-place shape)
    (thumb-tr-place shape)
    (thumb-tl-place shape)))
+
+; (defn thumb-15x-layout [shape]
+;   (union
+;    (thumb-tr-place shape)
+;    (thumb-tl-place shape)))
 
 (def larger-plate
   (let [plate-height (/ (- sa-double-length mount-height) 3)
@@ -694,41 +1267,50 @@
 (def thumbcaps
   (union
    (thumb-1x-layout (sa-cap 1))
-   (thumb-15x-layout (rotate (/ π 2) [0 0 1] (sa-cap 1.5)))))
+   ; (thumb-15x-layout (rotate (/ π 2) [0 0 1] (sa-cap 1)))
+   ))
 
 (def thumbcaps-fill
   (union
    (thumb-1x-layout keyhole-fill)
-   (thumb-15x-layout (rotate (/ π 2) [0 0 1] keyhole-fill))))
+   ; (thumb-15x-layout (rotate (/ π 2) [0 0 1] keyhole-fill))
+   ))
 
 (def thumb
   (union
    (thumb-1x-layout (rotate (/ π 2) [0 0 0] single-plate))
-   (thumb-tr-place (rotate (/ π 2) [0 0 1] single-plate))
-   (thumb-tr-place larger-plate)
-   (thumb-tl-place (rotate (/ π 2) [0 0 1] single-plate))
-   (thumb-tl-place larger-plate-half)))
+   ; (thumb-tr-place (rotate (/ π 2) [0 0 1] single-plate))
+   ; (thumb-tr-place larger-plate)
+   ; (thumb-tl-place (rotate (/ π 2) [0 0 1] single-plate))
+   ; (thumb-tl-place larger-plate-half)
+   ))
 
 (def thumb-left
   (union
    (thumb-1x-layout (rotate (/ π 2) [0 0 0] (mirror [1 0 0] single-plate)))
-   (thumb-tr-place (rotate (/ π 2) [0 0 1] (mirror [1 0 0] single-plate)))
-   (thumb-tr-place larger-plate)
-   (thumb-tl-place (rotate (/ π 2) [0 0 1] (mirror [1 0 0] single-plate)))
-   (thumb-tl-place larger-plate-half)))
+   ; (thumb-tr-place (rotate (/ π 2) [0 0 1] (mirror [1 0 0] single-plate)))
+   ; (thumb-tr-place larger-plate)
+   ; (thumb-tl-place (rotate (/ π 2) [0 0 1] (mirror [1 0 0] single-plate)))
+   ; (thumb-tl-place larger-plate-half)
+   ))
 
-(def thumb-post-tr (translate [(- (/ mount-width 2) post-adj)  (- (/ mount-height  1.1) post-adj) 0] web-post))
-(def thumb-post-tl (translate [(+ (/ mount-width -2) post-adj) (- (/ mount-height  1.1) post-adj) 0] web-post))
-(def thumb-post-bl (translate [(+ (/ mount-width -2) post-adj) (+ (/ mount-height -1.1) post-adj) 0] web-post))
-(def thumb-post-br (translate [(- (/ mount-width 2) post-adj)  (+ (/ mount-height -1.1) post-adj) 0] web-post))
+; (def thumb-post-tr (translate [(- (/ mount-width 2) post-adj)  (- (/ mount-height  1.1) post-adj) 0] web-post))
+; (def thumb-post-tl (translate [(+ (/ mount-width -2) post-adj) (- (/ mount-height  1.1) post-adj) 0] web-post))
+; (def thumb-post-bl (translate [(+ (/ mount-width -2) post-adj) (+ (/ mount-height -1.1) post-adj) 0] web-post))
+; (def thumb-post-br (translate [(- (/ mount-width 2) post-adj)  (+ (/ mount-height -1.1) post-adj) 0] web-post))
+
+(def thumb-post-tr web-post-tr)
+(def thumb-post-tl web-post-tl)
+(def thumb-post-bl web-post-bl)
+(def thumb-post-br web-post-br)
 
 (def thumb-connectors
   (union
    (triangle-hulls    ; top two
-    (thumb-tl-place thumb-post-tr)
+    (thumb-tl-place web-post-tr)
     (thumb-tl-place (translate [-0.33 -0.25 0] web-post-br))
-    (thumb-tr-place thumb-post-tl)
-    (thumb-tr-place thumb-post-bl))
+    (thumb-tr-place web-post-tl)
+    (thumb-tr-place web-post-bl))
    (triangle-hulls    ; bottom two on the right
     (thumb-br-place web-post-tr)
     (thumb-br-place web-post-br)
@@ -749,29 +1331,29 @@
     (thumb-mr-place web-post-tr)
     (thumb-ml-place web-post-br))
    (triangle-hulls    ; top two to the middle two, starting on the left
-    (thumb-tl-place thumb-post-tl)
+    (thumb-tl-place web-post-tl)
     (thumb-ml-place web-post-tr)
     (thumb-tl-place (translate [0.25 0.1 0] web-post-bl))
     (thumb-ml-place web-post-br)
     (thumb-tl-place (translate [-0.33 -0.25 0] web-post-br))
     (thumb-mr-place web-post-tr)
-    (thumb-tr-place thumb-post-bl)
+    (thumb-tr-place web-post-bl)
     (thumb-mr-place web-post-br)
-    (thumb-tr-place thumb-post-br))
+    (thumb-tr-place web-post-br))
    (triangle-hulls    ; top two to the main keyboard, starting on the left
-    (thumb-tl-place thumb-post-tl)
+    (thumb-tl-place web-post-tl)
     (key-place (+ innercol-offset 0) cornerrow web-post-bl)
-    (thumb-tl-place thumb-post-tr)
+    (thumb-tl-place web-post-tr)
     (key-place (+ innercol-offset 0) cornerrow web-post-br)
-    (thumb-tr-place thumb-post-tl)
+    (thumb-tr-place web-post-tl)
     (key-place (+ innercol-offset 1) cornerrow web-post-bl)
-    (thumb-tr-place thumb-post-tr)
+    (thumb-tr-place web-post-tr)
     (key-place (+ innercol-offset 1) cornerrow web-post-br)
     (key-place (+ innercol-offset 2) lastrow web-post-tl)
     (key-place (+ innercol-offset 2) lastrow web-post-bl)
-    (thumb-tr-place thumb-post-tr)
+    (thumb-tr-place web-post-tr)
     (key-place (+ innercol-offset 2) lastrow web-post-bl)
-    (thumb-tr-place thumb-post-br)
+    (thumb-tr-place web-post-br)
     (key-place (+ innercol-offset 2) lastrow web-post-br)
     (key-place (+ innercol-offset 3) lastrow web-post-bl)
     (key-place (+ innercol-offset 2) lastrow web-post-tr)
@@ -806,7 +1388,8 @@
       (triangle-hulls
        (key-place (+ innercol-offset 3) lastrow web-post-tr)
        (key-place (+ innercol-offset 3) cornerrow web-post-br)
-       (key-place (+ innercol-offset 4) cornerrow web-post-bl))))))
+       (key-place (+ innercol-offset 4) cornerrow web-post-bl)))))
+  )
 
 ;;;;;;;;;;;;;;;;
 ;; Mini Thumb ;;
@@ -1723,7 +2306,7 @@
     (def screw-offset-br [-3.5 -6.5 0]))
 (when (and (false? pinky-15u) (false? extra-row))
     (def screw-offset-tr [-7 6.5 0])
-    (def screw-offset-br [-5 19.5 0]))
+    (def screw-offset-br [-4 17 0]))
     
 ; Offsets for the screw inserts dependent on thumb-style & inner-column
 (when (and (= thumb-style "cf") inner-column)
@@ -1747,9 +2330,9 @@
     (def screw-offset-tm [9.5 -4.5 0])
     (def screw-offset-bm [8 -1 0]))
 (when (and (= thumb-style "default") (false? inner-column))
-    (def screw-offset-bl [-10.15 -8.7 0])
-    ;(def screw-offset-tm [9.5 -4.5 0])
-    (def screw-offset-bm [8 0.5 0]))
+    (def screw-offset-bl [-11.1 -7.7 0])
+    ; (def screw-offset-tm [9.5 -4.5 0])
+    (def screw-offset-bm [1 0 0]))
 (when (and (= thumb-style "tightly") inner-column)
     (def screw-offset-bl [5 -2 0])
     (def screw-offset-tm [9.5 20 0])
@@ -1758,7 +2341,6 @@
     (def screw-offset-bl [-6 -6.5 0])
     ;(def screw-offset-tm [9.5 20 0])
     (def screw-offset-bm [8 13.8 0]))
-
 
 (when (and (= nrows 4) (= ncols 5))
   (def screw-offset-tr [-5.18 8.55 0])
@@ -2168,108 +2750,6 @@
   )
 )
 
-;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Wood Cutting Tool ;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(def wood-piece
-  (union
-    (translate [0 0 -0.23]  
-      (rotate [(deg2rad (* -1 hand-rest-x)) 0 0]
-        (rotate [0 (deg2rad (* -1 hand-rest-y)) 0]
-          (difference
-            hand-rest-insert
-            (scale [1.01 1.01 1]
-            (translate [0 0 15]
-              hand-rest-insert
-            )
-            )
-          )
-        )
-      )
-    )
-  )
-)
-
-(def tool-1-negative
-  (rotate [0 0 (deg2rad -3.55)]
-    (union
-      (rotate [0 (deg2rad -8) 0]
-        (cube 10 100 11 :center false)
-      )
-      (cube 100 100 11 :center false)
-      (translate [2 2 0]
-        (binding [*fn* 100] (cylinder 4 20))
-      )
-    )
-  )
-)
-
-(def tool-1
-  (difference
-    (cube 110 100 10 :center false)
-    (translate [14 15 0]
-      tool-1-negative
-    )
-  )
-)
-
-(def tool-2-negative
-  (rotate [0 0 (deg2rad 0.3)]
-    (union
-      (rotate [(deg2rad -8) 0 0]
-        (cube 100 10 11 :center false)
-      )
-      (translate [0 5 0]
-        (cube 100 100 11 :center false) 
-      )
-      (translate [2 2 0]
-        (binding [*fn* 100] (cylinder 4 20))
-      )
-    )
-  )
-)
-
-(def tool-2
-  (difference
-    (cube 110 100 10 :center false)
-    (translate [35 10 0]
-      tool-2-negative 
-    )
-  )
-)
-
-(def tool-3-negative
-  (rotate [0 0 (deg2rad 0.95)]
-    (union
-      (rotate [(deg2rad 8) 0 0]
-        (cube 100 10 11 :center false)
-      )
-      (rotate [0 (deg2rad -15) (deg2rad 0.45)]
-        (cube 10 100 11 :center false)
-      )
-      (rotate [0 0 (deg2rad 0.45)]
-        (cube 100 100 11 :center false)
-      )
-      (translate [0 0 0]
-        (cube 100 100 11 :center false) 
-      )
-      (translate [2 2 5]
-        (binding [*fn* 100] (cylinder 6 20))
-      )
-    )
-  )
-)
-
-(def tool-3
-  (difference
-    (cube 110 100 10 :center false)
-    (translate [43.3 15 0]
-      tool-3-negative
-    )
-  )
-)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Bottom plate generation ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2431,14 +2911,14 @@
           (translate [0 0 3]
             screw-insert-outers
           )
-          wrist-attach-case-socket
+          ; wrist-attach-case-socket
         )
         usb-holder-space
         usb-holder-notch
         (translate [0 0 3]
           screw-insert-holes
         )
-        wrist-attach-case
+        ; wrist-attach-case
       )
     )
     (translate [0 0 -20]
@@ -2465,14 +2945,14 @@
           (translate [0 0 3]
             screw-insert-outers
           )
-          wrist-attach-case-socket
+          ; wrist-attach-case
         )
         usb-holder-space
         usb-holder-notch
         (translate [0 0 3]
           screw-insert-holes
         )
-        wrist-attach-case
+        ; wrist-attach-case
       )
     )
     (translate [0 0 -20]
@@ -2494,53 +2974,53 @@
   (def folder (str "things/3key/"nrows"x"ncols"/3key-"nrows"x"ncols"-"))
   (def img (str "things/img/3key-"nrows"x"ncols"-"))])
 
-(spit (str img"rest.scad")
-  (write-scad
-    (union
-      hand-rest-final
-      model-right
-    )
-  )
-)
+; (spit (str img"rest.scad")
+;   (write-scad
+;     (union
+;       hand-rest-final
+;       model-right
+;     )
+;   )
+; )
+;
+; (spit (str img"right.scad")
+;   (write-scad
+;     (union
+;       model-right
+;     )
+;   )
+; )
 
-(spit (str img"right.scad")
-  (write-scad
-    (union
-      model-right
-    )
-  )
-)
-
-(spit (str folder"right-ic.scad")
-  (write-scad
-    ic-fixture
-  )
-)
-            
-(spit (str folder"left-ic.scad")
-  (write-scad
-    (mirror [1 0 0]
-      ic-fixture
-    )
-  )
-)
-
-(spit (str folder"right-rest.scad")
-  (write-scad
-    (union
-      hand-rest-final
-    )
-  )
-)
-
-(spit (str folder"left-rest.scad")
-  (write-scad
-    (mirror [1 0 0]
-      hand-rest-final
-    )
-  )
-)
-
+; (spit (str folder"right-ic.scad")
+;   (write-scad
+;     ic-fixture
+;   )
+; )
+;             
+; (spit (str folder"left-ic.scad")
+;   (write-scad
+;     (mirror [1 0 0]
+;       ic-fixture
+;     )
+;   )
+; )
+;
+; (spit (str folder"right-rest.scad")
+;   (write-scad
+;     (union
+;       hand-rest-final
+;     )
+;   )
+; )
+;
+; (spit (str folder"left-rest.scad")
+;   (write-scad
+;     (mirror [1 0 0]
+;       hand-rest-final
+;     )
+;   )
+; )
+;
 (spit (str folder"right.scad")
   (write-scad
     model-right
@@ -2553,87 +3033,24 @@
   )
 )
 
-(spit (str folder"right-plate.scad")
-  (write-scad
-    (difference
-      (plate-printed 0)
-      ;(plate-text text-x text-y)
-    )
-  )
-)
-
-(spit (str folder"left-plate.scad")
-  (write-scad
-    (difference
-      ;(mirror [1 0 0]
-      (plate-printed 1)
-      ;)
-      ;(plate-text text-x text-y)
-    )
-  )
-)
-
-;(spit "things/6key/plate-laser-right.scad"
-;  (write-scad
-;    model-right-plate
-;  )
-;)
-
-;(spit "things/6key/plate-laser-left.scad"
-;  (write-scad
-;    (mirror [-1 0 0]
-;      model-right-plate
-;    )
-;  )
-;)
-
-(comment "
-(spit "things/tool-1-left.scad"
-  (write-scad
-    (rotate [0 (deg2rad 0) 0]
-      (mirror [0 1 0]
-        tool-1
-      )
-    )
-  )
-)
-
-(spit "things/tool-2-left.scad"
-  (write-scad
-    (rotate [0 (deg2rad 0) 0]
-      (mirror [0 1 0]
-        tool-2
-      )
-    )
-  )
-)
-
-(spit "things/tool-3-left.scad"
-  (write-scad
-    (rotate [0 (deg2rad 0) 0]
-      (mirror [0 1 0]
-        tool-3
-      )
-    )
-  )
-)
-
-(spit "things/tool-1-right.scad"
-  (write-scad
-    tool-1
-  )
-)
-
-(spit "things/tool-2-right.scad"
-  (write-scad
-    tool-2
-  )
-)
-(spit "things/tool-3-right.scad"
-  (write-scad
-    tool-3
-  )
-)
-")
+; (spit (str folder"right-plate.scad")
+;   (write-scad
+;     (difference
+;       (plate-printed 0)
+;       ;(plate-text text-x text-y)
+;     )
+;   )
+; )
+;
+; (spit (str folder"left-plate.scad")
+;   (write-scad
+;     (difference
+;       ;(mirror [1 0 0]
+;       (plate-printed 1)
+;       ;)
+;       ;(plate-text text-x text-y)
+;     )
+;   )
+; )
 
 (defn -main [dum] 1)  ; dummy to make it easier to batch

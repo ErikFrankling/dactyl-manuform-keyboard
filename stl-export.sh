@@ -71,7 +71,6 @@ do
 
 				openscad \
 					--export-format stl -o $savedir$dir$file".stl" \
-					--enable=fast-csg \
 					--render \
 					--quiet \
 					$readdir$dir$file".scad"
