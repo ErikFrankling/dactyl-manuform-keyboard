@@ -2433,18 +2433,18 @@
       (cube 7.34 1.56 10)
     )
     )
-    (translate [0 1.91 10.7]
-      (cube 12.3 4.18 18.6)
-    )
-    (translate [-5.62 -0.58 10.7]
-      (cube 0.6 0.8 18.6)
-    )
-    (translate [5.62 -0.58 10.7]
-      (cube 0.6 0.8 18.6)
-    )
-    (translate [0 4.5 20]
-      (cube 2 5 5)
-    )
+    ; (translate [0 1.91 10.7]
+    ;   (cube 12.3 4.18 18.6)
+    ; )
+    ; (translate [-5.62 -0.58 10.7]
+    ;   (cube 0.6 0.8 18.6)
+    ; )
+    ; (translate [5.62 -0.58 10.7]
+    ;   (cube 0.6 0.8 18.6)
+    ; )
+    ; (translate [0 4.5 20]
+    ;   (cube 2 5 5)
+    ; )
   )
 )
 
@@ -2453,71 +2453,46 @@
     (translate [0 0 10]
       (binding [*fn* 100] (cylinder 3.2 20))
     )
-    (translate [0 0.85 11.2]
-      (cube 10.5 8 17.6)
-    )
-    (translate [0 4.5 20]
-      (cube 2 5 5)
-    )
+    ; (translate [0 0.85 11.2]
+    ;   (cube 10.5 8 17.6)
+    ; )
+    ; (translate [0 4.5 20]
+    ;   (cube 2 5 5)
+    ; )
   )
 )
 
-(def pi-cube
-  (union
-    (translate [5.7 24.55 -1.5]
-      (cube 3 5.9 5)
-    )
-    (translate [5.7 23.525 2.5]
-      (binding [*fn* 100] (cylinder 1 3))
+(def ic-depth 35)
+(def ic-width 18.6)
+(def ic-height 3)
 
-    )
-  )
+(def ic-solder-width 3.5)
+(def ic-solder-height 2)
+(def ic-solder-cube
+    (cube ic-solder-width ic-depth ic-solder-height)
 )
 
-(def pi-hole
-  (difference
-    (cube 24 55 10)
+(def ic-border 2)
+
+(def ic-hole
+  (translate [0 (/ ic-depth -2) (/ ic-height 2)]
     (union
-      pi-cube
-      (mirror [0 1 0]
-        pi-cube
-      )
-      (mirror [1 0 0]
-        pi-cube
-      )
-      (rotate [0 0 pi]
-        pi-cube
-      )
+      (cube ic-width ic-depth ic-height)
+      (translate [(- (/ ic-width 2) (/ ic-solder-width 2)) 0 (/ ic-height -2)]
+        ic-solder-cube)
+      (translate [(+ (/ ic-width -2) (/ ic-solder-width 2)) 0 (/ ic-height -2)]
+        ic-solder-cube)
     )
   )
-)
 
-(def ic-wall
-  (difference
-    (union
-      (translate [0 -1.9 4.475]
-        (cube 28.2 3.8 14.95)
-        (translate [0 0.2 0]
-        (cube 30.9 1.1 14.95))
-      )
-      (translate [-7.05 -12.8 5]
-        (cube 14.1 18 10)
-      )
-      (translate [7.05 -12.8 5]
-        (cube 14.1 18 10)
-      )
-      (translate [0 -50.8 4]
-        (cube 28.2 58 8)
-      )
-    ) 
-  )
 )
 
 (def ic-fixture
   (difference
-    (union
-        ic-wall
+    (translate [0 (/ (+ ic-depth ic-border) -2) (/ (- ic-height ic-border) 2)]
+      (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border))
     )
+    ic-hole
     (translate [7 0 6]
       (rotate [(deg2rad 90) 0 0]
         usb-hole
@@ -2528,9 +2503,6 @@
         trrs-hole
       )
     )
-    (translate [0 -50.8 4]
-      pi-hole
-    ) 
   )
 )
 
@@ -2874,7 +2846,7 @@
       (translate [0 0 0]
         (screw-insert-all-shapes 3.25 1.75 2)
       )
-      ;(screw-insert-all-shapes 3 3 1)
+      (screw-insert-all-shapes 3 3 1)
       plate-pads-together
       (mirror [0 1 0]
         (mirror [pos 0 0]
@@ -2991,19 +2963,19 @@
 ;   )
 ; )
 
-; (spit (str folder"right-ic.scad")
-;   (write-scad
-;     ic-fixture
-;   )
-; )
-;             
-; (spit (str folder"left-ic.scad")
-;   (write-scad
-;     (mirror [1 0 0]
-;       ic-fixture
-;     )
-;   )
-; )
+(spit (str folder"right-ic.scad")
+  (write-scad
+    ic-fixture
+  )
+)
+            
+(spit (str folder"left-ic.scad")
+  (write-scad
+    (mirror [1 0 0]
+      ic-fixture
+    )
+  )
+)
 ;
 ; (spit (str folder"right-rest.scad")
 ;   (write-scad
@@ -3033,24 +3005,24 @@
   )
 )
 
-; (spit (str folder"right-plate.scad")
-;   (write-scad
-;     (difference
-;       (plate-printed 0)
-;       ;(plate-text text-x text-y)
-;     )
-;   )
-; )
+(spit (str folder"right-plate.scad")
+  (write-scad
+    (difference
+      (plate-printed 0)
+      ;(plate-text text-x text-y)
+    )
+  )
+)
 ;
-; (spit (str folder"left-plate.scad")
-;   (write-scad
-;     (difference
-;       ;(mirror [1 0 0]
-;       (plate-printed 1)
-;       ;)
-;       ;(plate-text text-x text-y)
-;     )
-;   )
-; )
+(spit (str folder"left-plate.scad")
+  (write-scad
+    (difference
+      ; (mirror [1 0 0]
+      (plate-printed 1)
+      ; )
+      ;(plate-text text-x text-y)
+    )
+  )
+)
 
 (defn -main [dum] 1)  ; dummy to make it easier to batch
