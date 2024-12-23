@@ -2360,7 +2360,7 @@
   (def screw-offset-tl [9.8 7.8 0]))
 
 (defn screw-insert-all-shapes [bottom-radius top-radius height]
-  (union (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl)
+  (union (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl) 
          (screw-insert 0 lastrow   bottom-radius top-radius height screw-offset-bl)
          (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
          (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
@@ -2487,22 +2487,65 @@
 
 )
 
+(defn screw-insert-ic-fixture [bottom-radius top-radius height]
+  (union 
+         (screw-insert 0 0         bottom-radius top-radius (/ height 2) screw-offset-tl) 
+         ; (screw-insert 0 lastrow   bottom-radius top-radius (/ height 2) screw-offset-bl)
+         ; (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
+         ; (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
+         (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm)
+         ; (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm)
+  ))
+
+(def screw-insert-ic-height 5)
+
+(def screw-insert-outers-ic (screw-insert-ic-fixture (+ screw-insert-bottom-radius 2.2) (+ screw-insert-top-radius 2.2) screw-insert-ic-height))
+(def screw-insert-inner-ic (screw-insert-ic-fixture screw-insert-bottom-radius screw-insert-top-radius screw-insert-ic-height))
+
+; Offsets for the controller/trrs holder cutout
+; (def holder-offset
+;   (case nrows
+;     4 -3.5
+;     5 0
+;     6 (if inner-column
+;           3.2
+;           2.2)))
+
+(def ic-fixture-holder
+    (translate [0 0 (/ (+ ic-height ic-border) 2)]
+      (difference
+        (translate [0 (/ (+ ic-depth ic-border) -2) 0] 
+          (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border))
+        )
+        ic-hole
+        ; (translate [7 0 6]
+        ;   (rotate [(deg2rad 90) 0 0]
+        ;     usb-hole
+        ;   )
+        ; )
+        ; (translate [-7 0 6]
+        ;   (rotate [(deg2rad 90) 0 0]
+        ;     trrs-hole
+        ;   )
+        ; )
+      )
+    )
+  )
+
+; Cutout for controller/trrs jack holder
+; (def usb-holder-ref (key-position 0 0 (map - (wall-locate2  0  -1) [0 (/ mount-height 2) 0])))
+(def ic-holder-position (map + [(+ 18.8 holder-offset) 18.7 0] [(first usb-holder-ref) (second usb-holder-ref) 0]))
+(def ic-holder-translate  (translate (map + ic-holder-position [-1.5 (* -1 wall-thickness) 0]) ic-fixture-holder))
+
 (def ic-fixture
-  (difference
-    (translate [0 (/ (+ ic-depth ic-border) -2) (/ (- ic-height ic-border) 2)]
-      (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border))
-    )
-    ic-hole
-    (translate [7 0 6]
-      (rotate [(deg2rad 90) 0 0]
-        usb-hole
+  (union
+    ic-holder-translate
+    ; (translate [0 0 3]
+      (difference 
+        screw-insert-outers-ic
+        screw-insert-inner-ic
       )
-    )
-    (translate [-7 0 6]
-      (rotate [(deg2rad 90) 0 0]
-        trrs-hole
-      )
-    )
+    ; )
   )
 )
 
@@ -2996,12 +3039,16 @@
 (spit (str folder"right.scad")
   (write-scad
     model-right
+    ic-fixture
   )
 )
 
 (spit (str folder"left.scad")
   (write-scad
       model-left
+    (mirror [1 0 0]
+      ic-fixture
+    )
   )
 )
 
