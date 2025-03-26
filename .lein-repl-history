@@ -8,3 +8,5 @@ exit
 (def thumb-style "default")(def nrows 5)(def ncols 6)(load-file "src/dactyl.clj"
 )
 (def thumb-style "default")(def nrows 5)(def ncols 6)(load-file "src/dactyl.clj")
+(def thumb-style "default")(def nrows 4)(def ncols 6)(load-file "src/dactyl.clj")
+(def thumb-style "default")(def nrows 5)(def ncols 6)(load-file "src/dactyl.clj")

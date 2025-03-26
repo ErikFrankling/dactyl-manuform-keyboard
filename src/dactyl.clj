@@ -1,34 +1,43 @@
-(ns dactyl-keyboard.dactyl
-    (:refer-clojure :exclude [use import])
-    (:require [clojure.core.matrix :refer [array matrix mmul]]
-              [scad-clj.scad :refer :all]
-              [scad-clj.model :refer :all]
-              [unicode-math.core :refer :all])
+(ns dactyl
+  (:refer-clojure :exclude [use import])
+  (:require [clojure.core.matrix :refer [array matrix mmul]]
+            [scad-clj.scad :refer [write-scad]]
+            [scad-clj.model :refer :all]
+            [unicode-math.core :refer [π]]
+            [clojure.java.io :as io]))
     ;(use (incanter core stats charts io)))
-)
 
 ;;;;;;;;;;;;;;;;;;
 ;; Added method ;;
 ;;;;;;;;;;;;;;;;;;
 
-(defmethod write-expr :fill [depth [form & block]]
-  (concat
-    (list (indent depth) "fill () {\n")
-    (mapcat #(write-expr (inc depth) %1) block)
-    (list (indent depth) "}\n")))
+(def output-dir "scad/")
 
-(defn fill [ & block]
+(defn delete-directory-recursive
+  "Recursively delete a directory."
+  [^java.io.File file]
+  ;; when `file` is a directory, list its entries and call this
+  ;; function with each entry. can't `recur` here as it's not a tail
+  ;; position, sadly. could cause a stack overflow for many entries?
+  ;; thanks to @nikolavojicic for the idea to use `run!` instead of
+  ;; `doseq` :)
+  (when (.isDirectory file)
+    (run! delete-directory-recursive (.listFiles file)))
+  ;; delete the file or directory. if it it's a file, it's easily
+  ;; deletable. if it's a directory, we already have deleted all its
+  ;; contents with the code above (remember?)
+  (io/delete-file file))
+
+; this method makes a scad file in the output folder making sure the folder exists
+(defn write-scad-file [filename content]
+  (let [path (str output-dir filename ".scad")]
+    (delete-directory-recursive (java.io.File. output-dir))
+    (io/make-parents path)
+    (spit path
+          (write-scad content))))
+
+(defn fill [& block]
   `(:fill ~block))
-
-
-;(defn load-var [rowsy colsy thumby]
-;  (let [arg1 (+ rowsy colsy)]
-;  (println "arg1: " arg1)
-;  )
-;)
-;(param 1 2 3)
-
-;(println "Whaaat: " arg1)
 
 ;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;
@@ -201,8 +210,7 @@
 (def square-led-size     6)
 
 (def switch-teeth-cutout
-  (let [
-        ; cherry, gateron, kailh switches all have a pair of tiny "teeth" that stick out
+  (let [; cherry, gateron, kailh switches all have a pair of tiny "teeth" that stick out
         ; on the top and bottom, this gives those teeth somewhere to press into
         teeth-x        4.5
         teeth-y        0.75
@@ -210,13 +218,10 @@
         teeth-z        (- plate-thickness teeth-z-down)
         teeth-x-offset 0
         teeth-y-offset (+ (/ keyswitch-height 2) (/ teeth-y 2.01))
-        teeth-z-offset (- plate-thickness (/ teeth-z 1.99) teeth-z-down)
-       ]
-      (->> (cube teeth-x teeth-y teeth-z)
-           (translate [teeth-x-offset teeth-y-offset teeth-z-offset])
-      )
-  )
-)
+        teeth-z-offset (- plate-thickness (/ teeth-z 1.99) teeth-z-down)]
+
+    (->> (cube teeth-x teeth-y teeth-z)
+         (translate [teeth-x-offset teeth-y-offset teeth-z-offset]))))
 
 (def hotswap-x2          (* (/ holder-x 3) 1.85))
 (def hotswap-z           (+ swap-z 0.5));thickness of kailh hotswap holder + some margin of printing error (0.5mm)
@@ -242,15 +247,14 @@
   ;    |    |_|    |  space for LED under SMD or transparent switches
   ;
   ; can be described as having two sizes in the y dimension depending on the x coordinate
-  (let [
-        swap-x              holder-x
+  (let [swap-x              holder-x
         swap-y              holder-y
-        
+
         swap-offset-x       0
         swap-offset-y       (/ (- holder-y swap-y) 2)
         swap-offset-z       (- (/ swap-z 2)) ; the bottom of the hole.
         swap-holder         (->> (cube swap-x (/ (+ swap-y 4) 2) swap-z)
-                                 (translate [swap-offset-x 
+                                 (translate [swap-offset-x
                                              (+ swap-offset-y (/ (+ swap-y 4) 4))
                                              swap-offset-z]))
         hotswap-x           holder-x ;cutout full width of holder instead of only 14.5mm
@@ -269,70 +273,68 @@
                                             (extrude-linear {:height 0.001 :twist 0 :convexity 0}))
                                        (->> (square hotswap-x (+ hotswap-y1 0.1))
                                             (extrude-linear {:height 0.001 :twist 0 :convexity 0})
-                                            (translate [0 0 hotswap-z])
-                                       )
-                                 )
-                                 (translate [hotswap-cutout-1-x-offset 
-                                             hotswap-cutout-1-y-offset 
-                                             (+ hotswap-cutout-z-offset (/ hotswap-z -2))])
+                                            (translate [0 0 hotswap-z])))
+
+                                 (translate [hotswap-cutout-1-x-offset
+                                             hotswap-cutout-1-y-offset
+                                             (+ hotswap-cutout-z-offset (/ hotswap-z -2))]))
                                  ; (color PIN)
-                            )
+
         hotswap-cutout-2    (->> (hull (->> (square hotswap-x2 (- hotswap-y2 0.4))
                                             (extrude-linear {:height 0.001 :twist 0 :convexity 0}))
                                        (->> (square hotswap-x2 (+ hotswap-y2 0.1))
                                             (extrude-linear {:height 0.001 :twist 0 :convexity 0})
-                                            (translate [0 0 hotswap-z])
-                                       )
-                                 )
-                                 (translate [hotswap-cutout-2-x-offset 
-                                             hotswap-cutout-2-y-offset 
-                                             (+ hotswap-cutout-z-offset (/ hotswap-z -2))])
+                                            (translate [0 0 hotswap-z])))
+
+                                 (translate [hotswap-cutout-2-x-offset
+                                             hotswap-cutout-2-y-offset
+                                             (+ hotswap-cutout-z-offset (/ hotswap-z -2))]))
                                  ; (color RED)
-                            )
+
         hotswap-cutout-3    (->> (cube hotswap-x3 hotswap-y3 hotswap-z)
-                                 (translate [ hotswap-cutout-3-x-offset
-                                              hotswap-cutout-3-y-offset
-                                              hotswap-cutout-z-offset])
+                                 (translate [hotswap-cutout-3-x-offset
+                                             hotswap-cutout-3-y-offset
+                                             hotswap-cutout-z-offset]))
                                  ; (color ORA)
-                            )
+
         hotswap-cutout-4    (->> (cube hotswap-x4 hotswap-y3 hotswap-z)
-                                 (translate [ hotswap-cutout-4-x-offset
-                                              hotswap-cutout-3-y-offset
-                                              hotswap-cutout-z-offset])
+                                 (translate [hotswap-cutout-4-x-offset
+                                             hotswap-cutout-3-y-offset
+                                             hotswap-cutout-z-offset]))
                                  ; (color BLU)
-                            )
+
         hotswap-led-cutout  (->> (cube square-led-size square-led-size 10)
-                                 (translate [ hotswap-cutout-led-x-offset
-                                              hotswap-cutout-led-y-offset
-                                              hotswap-cutout-z-offset]))
+                                 (translate [hotswap-cutout-led-x-offset
+                                             hotswap-cutout-led-y-offset
+                                             hotswap-cutout-z-offset]))
 
         diode-wire-dia 0.75
         diode-wire-channel-depth (* 1.5 diode-wire-dia)
         diode-body-width 1.95
         diode-body-length 4
         diode-corner-hole (->> (cylinder diode-wire-dia (* 2 hotswap-z))
-                              (with-fn ROUND-RES)
-                              (translate [-6.55 -6.75 0]))
+                               (with-fn ROUND-RES)
+                               (translate [-6.55 -6.75 0]))
         diode-view-hole   (->> (cube (/ diode-body-width 2) (/ diode-body-length 1.25) (* 2 hotswap-z))
-                              (translate [-6.25 -3 0]))
+                               (translate [-6.25 -3 0]))
         diode-socket-hole-left (->> (cylinder diode-wire-dia hotswap-z)
                                     (with-fn ROUND-RES)
                                     (translate [-6.85 1.5 0]))
         diode-channel-pin-left (->> (cube diode-wire-dia 2.5 diode-wire-channel-depth)
                                     (rotate (deg2rad 10) [0 0 1])
-                                    (translate [-6.55  0 (* -0.49 diode-wire-channel-depth)])
-                               )
+                                    (translate [-6.55  0 (* -0.49 diode-wire-channel-depth)]))
+
         diode-socket-hole-right (->> (cylinder diode-wire-dia hotswap-z)
-                                    (with-fn ROUND-RES)
-                                    (translate [6.85 3.5 0]))
+                                     (with-fn ROUND-RES)
+                                     (translate [6.85 3.5 0]))
         diode-channel-pin-right (->> (cube diode-wire-dia 6.5 diode-wire-channel-depth)
-                                    (rotate (deg2rad -5) [0 0 1])
-                                    (translate [6.55  0 (* -0.49 diode-wire-channel-depth)])
-                               )
+                                     (rotate (deg2rad -5) [0 0 1])
+                                     (translate [6.55  0 (* -0.49 diode-wire-channel-depth)]))
+
         diode-channel-wire (translate [-6.25 -5.75 (* -0.49 diode-wire-channel-depth)]
-                               (cube diode-wire-dia 2 diode-wire-channel-depth))
+                                      (cube diode-wire-dia 2 diode-wire-channel-depth))
         diode-body (translate [-6.25 -3.0 (* -0.49 diode-body-width)]
-                       (cube diode-body-width diode-body-length diode-body-width))
+                              (cube diode-body-width diode-body-length diode-body-width))
         diode-cutout (union diode-corner-hole
                             diode-view-hole
                             diode-channel-wire
@@ -344,54 +346,49 @@
         pin-hole            (->> (cylinder (/ 3.3 2) 10)
                                  (with-fn ROUND-RES))
         plus-hole           (translate [-3.81 2.54 0] pin-hole)
-        minus-hole          (translate [ 2.54 5.08 0] pin-hole)
+        minus-hole          (translate [2.54 5.08 0] pin-hole)
         friction-hole       (->> (cylinder (/ 1.95 2) 10)
                                  (with-fn ROUND-RES))
-        friction-hole-right (translate [ 5 0 0] friction-hole)
+        friction-hole-right (translate [5 0 0] friction-hole)
         friction-hole-left  (translate [-5 0 0] friction-hole)
         hotswap-shape
-            (difference 
+        (difference
                        ; (union 
-                               swap-holder
+         swap-holder
                                ; (debug diode-channel-wire))
-                        main-axis-hole
-                        plus-hole
-                        minus-hole
-                        friction-hole-left
-                        friction-hole-right
-                        (if hotswap-diode-cutout
-                             (union diode-cutout
-                                    diode-socket-hole-left
-                                    diode-channel-pin-left
-                                    (mirror [1 0 0] diode-cutout)
-                                    diode-socket-hole-right
-                                    diode-channel-pin-right
-                             )
-                        )
+         main-axis-hole
+         plus-hole
+         minus-hole
+         friction-hole-left
+         friction-hole-right
+         (if hotswap-diode-cutout
+           (union diode-cutout
+                  diode-socket-hole-left
+                  diode-channel-pin-left
+                  (mirror [1 0 0] diode-cutout)
+                  diode-socket-hole-right
+                  diode-channel-pin-right))
 
-                        hotswap-cutout-1
-                        hotswap-cutout-2
-                        hotswap-cutout-3
-                        hotswap-cutout-4
-                        (translate [0 2 0.85]
-                          hotswap-cutout-3)
-                        (translate [0 2 0.85]
-                          hotswap-cutout-4)
-                        (translate [-5.08 0 0]
-                        (translate [2 -0.4 0]
-                          (cube 4 4 10)
-                        ))
-                        hotswap-led-cutout)
-       ]
-       (if north_facing
-           (->> hotswap-shape
-                (mirror [1 0 0])
-                (mirror [0 1 0])
-           )
-           hotswap-shape
-       )
-  )
-)
+         hotswap-cutout-1
+         hotswap-cutout-2
+         hotswap-cutout-3
+         hotswap-cutout-4
+         (translate [0 2 0.85]
+                    hotswap-cutout-3)
+         (translate [0 2 0.85]
+                    hotswap-cutout-4)
+         (translate [-5.08 0 0]
+                    (translate [2 -0.4 0]
+                               (cube 4 4 10)))
+
+         hotswap-led-cutout)]
+
+    (if north_facing
+      (->> hotswap-shape
+           (mirror [1 0 0])
+           (mirror [0 1 0]))
+
+      hotswap-shape)))
 
 (defn hotswap-case-cutout [mirror-internals]
   (let [hotswap-x3          2
@@ -413,35 +410,32 @@
                 ;            (cube hotswap-x2 
                 ;                  5.7 ; min of all the hotswap-y2 values - 0.4 overhangs
                 ;                  hotswap-z))
-                (->> (cube hotswap-x3 5.9 hotswap-z)
-                                 (translate [ hotswap-cutout-3-x-offset
-                                              hotswap-cutout-3-y-offset
-                                              hotswap-cutout-z-offset])
+               (->> (cube hotswap-x3 5.9 hotswap-z)
+                    (translate [hotswap-cutout-3-x-offset
+                                hotswap-cutout-3-y-offset
+                                hotswap-cutout-z-offset]))
                                  ; (color YEL)
-                )
-                (->> (cube hotswap-x3 7.5 hotswap-z)
-                                 (translate [ hotswap-cutout-4-x-offset
-                                              hotswap-cutout-4-y-offset
-                                              hotswap-cutout-z-offset])
+
+               (->> (cube hotswap-x3 7.5 hotswap-z)
+                    (translate [hotswap-cutout-4-x-offset
+                                hotswap-cutout-4-y-offset
+                                hotswap-cutout-z-offset])))
                                  ; (color GRE)
-                            )
-              )
+
         rotated
-             (if north_facing
-                 (->> shape
-                      (mirror [1 0 0])
-                      (mirror [0 1 0])
-                 )
-                 shape
-             )
-        mirrored 
-          (->> (if mirror-internals
-                   (->> rotated (mirror [1 0 0]))
-                   rotated))
-        ]
-    mirrored
-  )
-)
+        (if north_facing
+          (->> shape
+               (mirror [1 0 0])
+               (mirror [0 1 0]))
+
+          shape)
+
+        mirrored
+        (->> (if mirror-internals
+               (->> rotated (mirror [1 0 0]))
+               rotated))]
+
+    mirrored))
 
 (def rmtz_plate_cutout
   (let [hotswap-x3          2
@@ -463,48 +457,43 @@
                 ;            (cube hotswap-x2 
                 ;                  5.7 ; min of all the hotswap-y2 values - 0.4 overhangs
                 ;                  hotswap-z))
-                (->> (cube hotswap-x3 5.9 hotswap-z)
-                                 (translate [ hotswap-cutout-3-x-offset
-                                              hotswap-cutout-3-y-offset
-                                              hotswap-cutout-z-offset])
+               (->> (cube hotswap-x3 5.9 hotswap-z)
+                    (translate [hotswap-cutout-3-x-offset
+                                hotswap-cutout-3-y-offset
+                                hotswap-cutout-z-offset]))
                                  ; (color YEL)
-                )
-                (->> (cube hotswap-x3 7.5 hotswap-z)
-                                 (translate [ hotswap-cutout-4-x-offset
-                                              hotswap-cutout-4-y-offset
-                                              hotswap-cutout-z-offset])
+
+               (->> (cube hotswap-x3 7.5 hotswap-z)
+                    (translate [hotswap-cutout-4-x-offset
+                                hotswap-cutout-4-y-offset
+                                hotswap-cutout-z-offset])))
                                  ; (color GRE)
-                            )
-              )
+
         rotated
-             (if north_facing
-                 (->> shape
-                      (mirror [1 0 0])
-                      (mirror [0 1 0])
-                 )
-                 shape
-             )
-        ]
-    rotated
-  )
-)
+        (if north_facing
+          (->> shape
+               (mirror [1 0 0])
+               (mirror [0 1 0]))
+
+          shape)]
+
+    rotated))
 
 (def rmtz_plate_holder
-  (let [
-        rmtz-holder-x        holder-x
+  (let [rmtz-holder-x        holder-x
         rmtz-holder-y        holder-y ; should be less than or equal to holder-y
         rmtz-holder-z        5; //TODO increase to 6 and fix clip-in-cuts to static height
         rmtz-holder-offse-x 0
         rmtz-holder-offset-y (/ (- holder-y rmtz-holder-y) 2)
         rmtz-holder-offset-z (- (/ rmtz-holder-z 2)) ; the bottom of the hole. 
-        switch_socket_base  (cube rmtz-holder-x 
-                                  rmtz-holder-y 
+        switch_socket_base  (cube rmtz-holder-x
+                                  rmtz-holder-y
                                   rmtz-holder-z)
 
         switch_socket_base_cutout  (cube (- rmtz-holder-x 2.7)
                                          (- rmtz-holder-y 2.7)
-                                         (+ rmtz-holder-z 0.1)
-                                   )
+                                         (+ rmtz-holder-z 0.1))
+
         rmtz-holder-cutout-offset-y (- (/ rmtz-holder-y 2) 1.35)
         slide_in_cuts (->> (cylinder (/ 1.9 2) (+ rmtz-holder-z 0.1))
                            (with-fn ROUND-RES))
@@ -513,81 +502,70 @@
         rmtz-holder-clip-offset-y (- (/ rmtz-holder-y 2) 2.7)
         rmtz-holder-clip-offset-z (- (- rmtz-holder-offset-z) 3)
         clip_in_cuts (->> (cylinder (/ 2 2) (- rmtz-holder-z 2))
-                           (with-fn ROUND-RES))
+                          (with-fn ROUND-RES))
 
-        rmtz_plate_holder_shape 
-            (translate [rmtz-holder-offse-x 
-                        rmtz-holder-offset-y
-                        rmtz-holder-offset-z]
-                (difference (union switch_socket_base
+        rmtz_plate_holder_shape
+        (translate [rmtz-holder-offse-x
+                    rmtz-holder-offset-y
+                    rmtz-holder-offset-z]
+                   (difference (union switch_socket_base)
                                    ; (debug slide_in_cuts) ; may have to disable below to appear
-                            )
-                            switch_socket_base_cutout
-                            (translate [ 3.5 (- rmtz-holder-cutout-offset-y) 0 ] slide_in_cuts)
-                            (translate [ 3.5    rmtz-holder-cutout-offset-y  0 ] slide_in_cuts)
-                            (translate [-3.5    rmtz-holder-cutout-offset-y  0 ] slide_in_cuts)
-                            (translate [-3.5 (- rmtz-holder-cutout-offset-y) 0 ] slide_in_cuts)
 
-                            (translate [   rmtz-holder-clip-offset-x (- rmtz-holder-clip-offset-y)  rmtz-holder-clip-offset-z ] clip_in_cuts)
-                            (translate [   rmtz-holder-clip-offset-x     rmtz-holder-clip-offset-y  rmtz-holder-clip-offset-z ] clip_in_cuts)
-                            (translate [(- rmtz-holder-clip-offset-x)    rmtz-holder-clip-offset-y  rmtz-holder-clip-offset-z ] clip_in_cuts)
-                            (translate [(- rmtz-holder-clip-offset-x) (- rmtz-holder-clip-offset-y) rmtz-holder-clip-offset-z ] clip_in_cuts)
-            ))
-       ]
-       (if north_facing
-           (->> rmtz_plate_holder_shape
-                (mirror [1 0 0])
-                (mirror [0 1 0])
-           )
-           rmtz_plate_holder_shape
-       )
-  )
-)
+                               switch_socket_base_cutout
+                               (translate [3.5 (- rmtz-holder-cutout-offset-y) 0] slide_in_cuts)
+                               (translate [3.5    rmtz-holder-cutout-offset-y  0] slide_in_cuts)
+                               (translate [-3.5    rmtz-holder-cutout-offset-y  0] slide_in_cuts)
+                               (translate [-3.5 (- rmtz-holder-cutout-offset-y) 0] slide_in_cuts)
+
+                               (translate [rmtz-holder-clip-offset-x (- rmtz-holder-clip-offset-y)  rmtz-holder-clip-offset-z] clip_in_cuts)
+                               (translate [rmtz-holder-clip-offset-x     rmtz-holder-clip-offset-y  rmtz-holder-clip-offset-z] clip_in_cuts)
+                               (translate [(- rmtz-holder-clip-offset-x)    rmtz-holder-clip-offset-y  rmtz-holder-clip-offset-z] clip_in_cuts)
+                               (translate [(- rmtz-holder-clip-offset-x) (- rmtz-holder-clip-offset-y) rmtz-holder-clip-offset-z] clip_in_cuts)))]
+
+    (if north_facing
+      (->> rmtz_plate_holder_shape
+           (mirror [1 0 0])
+           (mirror [0 1 0]))
+
+      rmtz_plate_holder_shape)))
 
 (def gateron-hotswap-holder
   (make-hotswap-holder 4.5  ;hotswap-y1
                        4.55 ;hotswap-cutout-1-y-offset
                        6.0  ;hotswap-y2
-                       3.8  ;hotswap-cutout-2-y-offset
-  )
-)
+                       3.8))  ;hotswap-cutout-2-y-offset
 
 (def outemu-hotswap-holder
   (make-hotswap-holder 4.6  ;hotswap-y1
                        4.35 ;hotswap-cutout-1-y-offset
                        4.6  ;hotswap-y2
-                       3.0  ;hotswap-cutout-2-y-offset
-  )
-)
+                       3.0))  ;hotswap-cutout-2-y-offset
 
 (def hotswap-holder
   (make-hotswap-holder 4.1  ;hotswap-y1
                        4.815 ;hotswap-cutout-1-y-offset
                        6.1  ;hotswap-y2
-                       1.815  ;hotswap-cutout-2-y-offset
-  )
-)
+                       1.815))  ;hotswap-cutout-2-y-offset
 
 (def solderless-plate
-  (let [
-        solderless-x        holder-x
+  (let [solderless-x        holder-x
         solderless-y        holder-y ; should be less than or equal to holder-y
         solderless-z        4;
         solderless-cutout-z (* 1.01 solderless-z)
         solderless-offset-x 0
         solderless-offset-y (/ (- holder-y solderless-y) 2)
         solderless-offset-z (- (/ solderless-z 2)) ; the bottom of the hole. 
-        switch_socket_base  (cube solderless-x 
-                                  solderless-y 
+        switch_socket_base  (cube solderless-x
+                                  solderless-y
                                   solderless-z)
         wire-channel-diameter (+ 0.3 wire-diameter); elegoo saturn prints 1.75mm tubes ~1.62mm
         wire-channel-offset  (- (/ solderless-z 2) (/ wire-channel-diameter 3))
         led-cutout-x-offset  0
         led-cutout-y-offset -6
-        led-cutout          (translate [0 -6 0] 
-                                 (cube square-led-size 
-                                       square-led-size 
-                                       solderless-cutout-z))
+        led-cutout          (translate [0 -6 0]
+                                       (cube square-led-size
+                                             square-led-size
+                                             solderless-cutout-z))
         main-axis-hole      (->> (cylinder (/ 4.1 2) solderless-cutout-z)
                                  (with-fn ROUND-RES))
         plus-hole           (->> (cylinder (/ 1.55 2) solderless-cutout-z)
@@ -600,7 +578,7 @@
                                  (translate [2.54 5.08 0]))
         friction-hole       (->> (cylinder (/ 1.95 2) solderless-cutout-z)
                                  (with-fn ROUND-RES))
-        friction-hole-right (translate [ 5 0 0] friction-hole)
+        friction-hole-right (translate [5 0 0] friction-hole)
         friction-hole-left  (translate [-5 0 0] friction-hole)
 
         diode-wire-dia 0.75
@@ -608,11 +586,11 @@
                               (with-fn ROUND-RES)
                               (translate [3.65 3.0 0]))
         diode-pin  (translate [-3.15 3.0 (/ solderless-z 2)]
-                       (cube 2 diode-wire-dia 2))
+                              (cube 2 diode-wire-dia 2))
         diode-wire (translate [2.75 3.0 (/ solderless-z 2)]
-                       (cube 2 diode-wire-dia 2))
+                              (cube 2 diode-wire-dia 2))
         diode-body (translate [-0.2 3.0 (/ solderless-z 2)]
-                       (cube 4 1.95 3))
+                              (cube 4 1.95 3))
 
         row-wire-radius             (/ wire-channel-diameter 2)
         row-wire-channel-end-radius 3.25
@@ -621,48 +599,46 @@
                                   (translate [row-wire-channel-end-radius 0 0])
                                   (extrude-rotate {:angle 90})
                                   (rotate (deg2rad 90) [1 0 0])
-                                  (translate [(+ 7 (- row-wire-channel-end-radius)) 
-                                              5.08 
-                                              (+ wire-channel-offset (- row-wire-channel-end-radius))])
-                             )
-        row-wire-channel-ends (translate [8 5.08 -1.15] 
-                                  (union (cube 3 wire-channel-diameter solderless-z)
-                                         (translate [(/ 3 -2) 0 0] 
-                                             (->> (cylinder (/ wire-channel-diameter 2) solderless-z)
-                                                  (with-fn 50)))))
+                                  (translate [(+ 7 (- row-wire-channel-end-radius))
+                                              5.08
+                                              (+ wire-channel-offset (- row-wire-channel-end-radius))]))
+
+        row-wire-channel-ends (translate [8 5.08 -1.15]
+                                         (union (cube 3 wire-channel-diameter solderless-z)
+                                                (translate [(/ 3 -2) 0 0]
+                                                           (->> (cylinder (/ wire-channel-diameter 2) solderless-z)
+                                                                (with-fn 50)))))
         row-wire-channel-cube-end (union (->> (cube wire-channel-diameter
-                                                    wire-channel-diameter 
+                                                    wire-channel-diameter
                                                     wire-channel-diameter)
-                                              (translate [6 5.08 (+ 0 wire-channel-offset)])
-                                         )
+                                              (translate [6 5.08 (+ 0 wire-channel-offset)]))
+
                                          (->> (cylinder (/ wire-channel-diameter 2)
                                                         wire-channel-diameter)
                                               (with-fn 50)
-                                              (translate [5 5.08 (+ (/ wire-channel-diameter 2) wire-channel-offset)])
-                                         )
-                                  )
+                                              (translate [5 5.08 (+ (/ wire-channel-diameter 2) wire-channel-offset)])))
+
         row-wire-channel-curve-radius 45
         row-wire-channel (union
-                             (->> (circle row-wire-radius)
-                                  (with-fn 50)
-                                  (translate [row-wire-channel-curve-radius 0 0])
-                                  (extrude-rotate {:angle 90})
-                                  (rotate (deg2rad 90) [1 0 0])
-                                  (rotate (deg2rad -45) [0 1 0])
-                                  (translate [0 
-                                              5.08 
-                                              (+ 0.25 wire-channel-offset (- row-wire-channel-curve-radius))])
-                             )
-                             row-wire-channel-end
-                             row-wire-channel-ends
-                             row-wire-channel-cube-end
-                             (->> (union row-wire-channel-end
-                                         row-wire-channel-ends
-                                         row-wire-channel-cube-end
-                                  )
-                                  (mirror [1 0 0])
-                             )
-                         )
+                          (->> (circle row-wire-radius)
+                               (with-fn 50)
+                               (translate [row-wire-channel-curve-radius 0 0])
+                               (extrude-rotate {:angle 90})
+                               (rotate (deg2rad 90) [1 0 0])
+                               (rotate (deg2rad -45) [0 1 0])
+                               (translate [0
+                                           5.08
+                                           (+ 0.25 wire-channel-offset (- row-wire-channel-curve-radius))]))
+
+                          row-wire-channel-end
+                          row-wire-channel-ends
+                          row-wire-channel-cube-end
+                          (->> (union row-wire-channel-end
+                                      row-wire-channel-ends
+                                      row-wire-channel-cube-end)
+
+                               (mirror [1 0 0])))
+
         col-wire-radius       (+ 0.025 (/ wire-channel-diameter 2))
         col-wire-ends-radius  (+ 0.1   (/ wire-channel-diameter 2))
         col-wire-ends-zoffset    0.0725 ; should be diff of two magic numbers above
@@ -672,56 +648,48 @@
                               (translate [col-wire-channel-curve-radius 0 0])
                               (extrude-rotate {:angle 90})
                               (rotate (deg2rad 135) [0 0 1])
-                              (translate [(+ 3.10 col-wire-channel-curve-radius) 
-                                          0 
-                                          (- 0.1 wire-channel-offset)])
-                         )
+                              (translate [(+ 3.10 col-wire-channel-curve-radius)
+                                          0
+                                          (- 0.1 wire-channel-offset)]))
 
-        solderless-shape 
-            (translate [solderless-offset-x 
-                        solderless-offset-y
-                        solderless-offset-z]
-                (difference (union switch_socket_base
+        solderless-shape
+        (translate [solderless-offset-x
+                    solderless-offset-y
+                    solderless-offset-z]
+                   (difference (union switch_socket_base)
                                    ;(debug row-wire-channel-cube-end) ; may have to disable below to appear
-                            )
-                            main-axis-hole
-                            plus-hole
-                            minus-hole
-                            friction-hole-left
-                            friction-hole-right
-                            diode-row-hole
-                            row-wire-channel
-                            col-wire-channel
-                            diode-pin
-                            diode-body
-                            diode-wire
-                            led-cutout
-            ))
-       ]
-       (if north_facing
-           (->> solderless-shape
-                (mirror [1 0 0])
-                (mirror [0 1 0])
-           )
-           solderless-shape
-       )
-  )
-)
+
+                               main-axis-hole
+                               plus-hole
+                               minus-hole
+                               friction-hole-left
+                               friction-hole-right
+                               diode-row-hole
+                               row-wire-channel
+                               col-wire-channel
+                               diode-pin
+                               diode-body
+                               diode-wire
+                               led-cutout))]
+
+    (if north_facing
+      (->> solderless-shape
+           (mirror [1 0 0])
+           (mirror [0 1 0]))
+
+      solderless-shape)))
 
 (def switch-corner-cutout
-  (let [ cutout-radius 0.75
-         cutout (->> (cylinder cutout-radius 99)
-                     (with-fn 15))
-         cutout-x (- (/ keyswitch-width  2) (/ cutout-radius 2))
-         cutout-y (- (/ keyswitch-height 2) (/ cutout-radius 2))
-       ]
+  (let [cutout-radius 0.75
+        cutout (->> (cylinder cutout-radius 99)
+                    (with-fn 15))
+        cutout-x (- (/ keyswitch-width  2) (/ cutout-radius 2))
+        cutout-y (- (/ keyswitch-height 2) (/ cutout-radius 2))]
+
     (union
-      (translate [   cutout-x    cutout-y  0] cutout)
-      (translate [(- cutout-x)   cutout-y  0] cutout)
-      (translate [   cutout-x (- cutout-y) 0] cutout)
-    )
-  )
-)
+     (translate [cutout-x    cutout-y  0] cutout)
+     (translate [(- cutout-x)   cutout-y  0] cutout)
+     (translate [cutout-x (- cutout-y) 0] cutout))))
 
 (def amoeba-x 1) ; mm width TODO wtf?
 (def amoeba-y 16) ; mm high
@@ -734,24 +702,21 @@
 (def plate_holes_diameter 1.6)
 (def plate_holes_depth 20.0)
 (def switch-plate-holes-cutout
-  (let [ cutout-radius (/ plate_holes_diameter 2)
-         cutout (->> (cylinder cutout-radius 99)
-                     (with-fn 50))
-         cutout-x (/ plate_holes_width  2)
-         cutout-y (/ plate_holes_height 2)
-       ]
+  (let [cutout-radius (/ plate_holes_diameter 2)
+        cutout (->> (cylinder cutout-radius 99)
+                    (with-fn 50))
+        cutout-x (/ plate_holes_width  2)
+        cutout-y (/ plate_holes_height 2)]
+
     (union
-      (translate [   cutout-x    cutout-y  0] cutout)
-      (translate [(- cutout-x)   cutout-y  0] cutout)
-      (translate [   cutout-x (- cutout-y) 0] cutout)
-    )
-  )
-)
+     (translate [cutout-x    cutout-y  0] cutout)
+     (translate [(- cutout-x)   cutout-y  0] cutout)
+     (translate [cutout-x (- cutout-y) 0] cutout))))
 
 (def switch-bottom
-  (translate [0 0 keyswitch-below-clearance] 
-             (cube amoeba-y 
-                   amoeba-y 
+  (translate [0 0 keyswitch-below-clearance]
+             (cube amoeba-y
+                   amoeba-y
                    keyswitch-below-plate)))
 
 (def flex-pcb-holder
@@ -761,33 +726,29 @@
         pcb-holder-z-offset (- (* 2 keyswitch-below-clearance) (/ pcb-holder-z 2))
         minus-hole          (->> (cylinder (/ 4 2) 99)
                                  (with-fn 15)
-                                 (translate [2.54 5.08 0]))
-       ]
-  (union
-        (difference
-           (translate [0 
-                   (/ keyswitch-height 2)
-                   pcb-holder-z-offset]
-              (difference (cube pcb-holder-x pcb-holder-y pcb-holder-z)
-                          ;cut triangle out of pcb clip
-                          (->> (cube (* 1.01 pcb-holder-x) pcb-holder-y pcb-holder-z)
-                              (translate [0 0 (/ pcb-holder-z -1.25)])
-                              (rotate (deg2rad -45) [1 0 0])
-                          )
-              )
-           )
-           minus-hole 
-        )
-        (translate [0 
-                    (+ (/ keyswitch-height 2) (/ pcb-holder-y 3) )
-                    keyswitch-below-clearance]
-            (color YEL (cube pcb-holder-x 
-                             (/ pcb-holder-y 3) 
-                             (* 3 keyswitch-below-plate)))
-        )
-   )))
+                                 (translate [2.54 5.08 0]))]
 
- ; (render ;tell scad to try and cache this repetitive code, kinda screws up previews
+    (union
+     (difference
+      (translate [0
+                  (/ keyswitch-height 2)
+                  pcb-holder-z-offset]
+                 (difference (cube pcb-holder-x pcb-holder-y pcb-holder-z)
+                           ;cut triangle out of pcb clip
+                             (->> (cube (* 1.01 pcb-holder-x) pcb-holder-y pcb-holder-z)
+                                  (translate [0 0 (/ pcb-holder-z -1.25)])
+                                  (rotate (deg2rad -45) [1 0 0]))))
+
+      minus-hole)
+
+     (translate [0
+                 (+ (/ keyswitch-height 2) (/ pcb-holder-y 3))
+                 keyswitch-below-clearance]
+                (color YEL (cube pcb-holder-x
+                                 (/ pcb-holder-y 3)
+                                 (* 3 keyswitch-below-plate)))))))
+
+; (render ;tell scad to try and cache this repetitive code, kinda screws up previews
 (defn make-single-plate [mirror-internals hotswap-type]
   (let [top-wall (->> (cube mount-height 1.5 (+ plate-thickness 0.85))
                       (translate [0
@@ -798,75 +759,56 @@
                                    0
                                    (/ (- plate-thickness 0.85) 2)]))
         plate-half (difference (union top-wall left-wall)
-                               switch-teeth-cutout
+                               switch-teeth-cutout)
                                ; (if plate-holes switch-plate-holes-cutout
                                ;                 switch-corner-cutout)
-                   )
+
         plate (union plate-half
-                  (->> plate-half
-                       (mirror [1 0 0])
-                       (mirror [0 1 0]))
-                  (if use_hotswap_holder
-                    (case hotswap-type "kailh-hotswap"   hotswap-holder
-                                       "gateron-hotswap" gateron-hotswap-holder
-                                       "outemu-hotswap"  outemu-hotswap-holder))
-                  (if use_solderless solderless-plate)
-                  (if rmtz_solderless_inserts rmtz_plate_holder)
-              )
-       ]
+                     (->> plate-half
+                          (mirror [1 0 0])
+                          (mirror [0 1 0]))
+                     (if use_hotswap_holder
+                       (case hotswap-type "kailh-hotswap"   hotswap-holder
+                             "gateron-hotswap" gateron-hotswap-holder
+                             "outemu-hotswap"  outemu-hotswap-holder))
+                     (if use_solderless solderless-plate)
+                     (if rmtz_solderless_inserts rmtz_plate_holder))]
+
     (->> (if mirror-internals
            (->> plate (mirror [1 0 0]))
-           plate
-         )
-    )
-  )
-)
+           plate))))
 
 (def single-plate
-  (make-single-plate false hotswap-type)
-)
+  (make-single-plate false hotswap-type))
 
 (def single-plate-blank
-    (union 
-        (translate [0 0  (/ plate-thickness 2)]
-            (cube mount-width
-                  mount-height
-                  (+ plate-thickness 0.001)
-            )
-        )
-        (if use_hotswap_holder (translate [0 0 (- (/ hotswap-z 2))] 
-                            (cube mount-width 
-                                  mount-height 
-                                  hotswap-z)))
-        (if use_solderless (hull solderless-plate))
-        (if rmtz_solderless_inserts rmtz_plate_cutout)
-    )
-)
+  (union
+   (translate [0 0  (/ plate-thickness 2)]
+              (cube mount-width
+                    mount-height
+                    (+ plate-thickness 0.001)))
+
+   (if use_hotswap_holder (translate [0 0 (- (/ hotswap-z 2))]
+                                     (cube mount-width
+                                           mount-height
+                                           hotswap-z)))
+   (if use_solderless (hull solderless-plate))
+   (if rmtz_solderless_inserts rmtz_plate_cutout)))
 
 (defn single-plate-cut [mirror-internals]
-  (difference 
-    single-plate-blank
-    (single-plate mirror-internals)
-  )
-)
+  (difference
+   single-plate-blank
+   (single-plate mirror-internals)))
 
+(write-scad-file "cap_test"
+                 (union
+                  single-plate))
 
-(spit "things/cap_test.scad"
-     (write-scad
-       (union
-         single-plate
-       )
-     )
-)
-
-
-; (spit "things/socket_test.scad"
-;      (write-scad
+;      (write-scad-file "socket_test")
 ;        (union
 ;          hot-socket
 ;        )
 ;      )
-; )
 
 ;;;;;;;;;;;;;;;;
 ;; SA Keycaps ;;
@@ -970,9 +912,9 @@
                                 (rotate-y-fn  fixed-tenting)
                                 (translate-fn [0 (second (column-offset column)) 0]))]
     (->> (case column-style
-               :orthographic placed-shape-ortho
-               :fixed        placed-shape-fixed
-               placed-shape)
+           :orthographic placed-shape-ortho
+           :fixed        placed-shape-fixed
+           placed-shape)
          (rotate-y-fn  tenting-angle)
          (translate-fn [0 0 keyboard-z-offset]))))
 
@@ -1006,7 +948,7 @@
                :when (or (.contains [(+ innercol-offset 2) (+ innercol-offset 3)] column)
                          (and (.contains [(+ innercol-offset 4) (+ innercol-offset 5)] column) extra-row (= ncols (+ innercol-offset 6)))
                          (and (.contains [(+ innercol-offset 4)] column) extra-row (= ncols (+ innercol-offset 5)))
-                         (and inner-column (not= row cornerrow)(= column 0))
+                         (and inner-column (not= row cornerrow) (= column 0))
                          (not= row lastrow))]
            (->> single-plate
                 ;                (rotate (/ π 2) [0 0 1])
@@ -1018,7 +960,7 @@
                :when (or (.contains [(+ innercol-offset 2) (+ innercol-offset 3)] column)
                          (and (.contains [(+ innercol-offset 4) (+ innercol-offset 5)] column) extra-row (= ncols (+ innercol-offset 6)))
                          (and (.contains [(+ innercol-offset 4)] column) extra-row (= ncols (+ innercol-offset 5)))
-                         (and inner-column (not= row cornerrow)(= column 0))
+                         (and inner-column (not= row cornerrow) (= column 0))
                          (not= row lastrow))]
            (->> (mirror [1 0 0] single-plate)
                 ;                (rotate (/ π 2) [0 0 1])
@@ -1026,29 +968,29 @@
 (def caps
   (apply union
          (conj (for [column columns
-               row rows
-               :when (or (and (= column 0) (< row 3))
-                         (and (.contains [1 2] column) (< row 4))
-                         (.contains [3 4 5 6] column))]
-               (->> (sa-cap (if (and pinky-15u (= column lastcol) (not= row lastrow)) 1.5 1))
-                    (key-place column row)))
+                     row rows
+                     :when (or (and (= column 0) (< row 3))
+                               (and (.contains [1 2] column) (< row 4))
+                               (.contains [3 4 5 6] column))]
+                 (->> (sa-cap (if (and pinky-15u (= column lastcol) (not= row lastrow)) 1.5 1))
+                      (key-place column row)))
                (list (key-place 0 0 (sa-cap 1))
-                 (key-place 0 1 (sa-cap 1))
-                 (key-place 0 2 (sa-cap 1))))))
+                     (key-place 0 1 (sa-cap 1))
+                     (key-place 0 2 (sa-cap 1))))))
 
 (def caps-fill
   (apply union
          (conj (for [column columns
-               row rows
-               :when (or (.contains [(+ innercol-offset 2) (+ innercol-offset 3)] column)
-                         (and (.contains [(+ innercol-offset 4) (+ innercol-offset 5)] column) extra-row (= ncols (+ innercol-offset 6)))
-                         (and (.contains [(+ innercol-offset 4)] column) extra-row (= ncols (+ innercol-offset 5)))
-                         (and inner-column (not= row cornerrow)(= column 0))
-                         (not= row lastrow))]
+                     row rows
+                     :when (or (.contains [(+ innercol-offset 2) (+ innercol-offset 3)] column)
+                               (and (.contains [(+ innercol-offset 4) (+ innercol-offset 5)] column) extra-row (= ncols (+ innercol-offset 6)))
+                               (and (.contains [(+ innercol-offset 4)] column) extra-row (= ncols (+ innercol-offset 5)))
+                               (and inner-column (not= row cornerrow) (= column 0))
+                               (not= row lastrow))]
                  (key-place column row keyhole-fill))
                (list (key-place 0 0 keyhole-fill)
-                 (key-place 0 1 keyhole-fill)
-                 (key-place 0 2 keyhole-fill)))))
+                     (key-place 0 1 keyhole-fill)
+                     (key-place 0 2 keyhole-fill)))))
 
 ;placement for the innermost column
 (def key-holes-inner
@@ -1078,13 +1020,13 @@
 ; wide posts for 1.5u keys in the main cluster
 (if pinky-15u
   (do (def wide-post-tr (translate [(- (/ mount-width 1.2) post-adj)  (- (/ mount-height  2) post-adj) 0] web-post))
-    (def wide-post-tl (translate [(+ (/ mount-width -1.2) post-adj) (- (/ mount-height  2) post-adj) 0] web-post))
-    (def wide-post-bl (translate [(+ (/ mount-width -1.2) post-adj) (+ (/ mount-height -2) post-adj) 0] web-post))
-    (def wide-post-br (translate [(- (/ mount-width 1.2) post-adj)  (+ (/ mount-height -2) post-adj) 0] web-post)))
+      (def wide-post-tl (translate [(+ (/ mount-width -1.2) post-adj) (- (/ mount-height  2) post-adj) 0] web-post))
+      (def wide-post-bl (translate [(+ (/ mount-width -1.2) post-adj) (+ (/ mount-height -2) post-adj) 0] web-post))
+      (def wide-post-br (translate [(- (/ mount-width 1.2) post-adj)  (+ (/ mount-height -2) post-adj) 0] web-post)))
   (do (def wide-post-tr web-post-tr)
-    (def wide-post-tl web-post-tl)
-    (def wide-post-bl web-post-bl)
-    (def wide-post-br web-post-br)))
+      (def wide-post-tl web-post-tl)
+      (def wide-post-bl web-post-bl)
+      (def wide-post-br web-post-br)))
 
 (defn triangle-hulls [& shapes]
   (apply union
@@ -1193,8 +1135,8 @@
        (rotate (deg2rad -23) [0 1 0])
        (rotate (deg2rad  10) [0 0 1])
        (translate thumborigin)
-       (translate [-12 -16 3])
-       ))
+       (translate [-12 -16 3])))
+
 (defn thumb-tl-place [shape]
   (->> shape
        (rotate (deg2rad  10) [1 0 0])
@@ -1208,8 +1150,8 @@
        (rotate (deg2rad -34) [0 1 0])
        (rotate (deg2rad  48) [0 0 1])
        (translate thumborigin)
-       (translate [-29 -40 -13])
-       ))
+       (translate [-29 -40 -13])))
+
 (defn thumb-ml-place [shape]
   (->> shape
        (rotate (deg2rad   6) [1 0 0])
@@ -1223,16 +1165,15 @@
        (rotate (deg2rad -33) [0 1 0])
        (rotate (deg2rad  54) [0 0 1])
        (translate thumborigin)
-       (translate [-37.8 -55.3 -25.3])
-       ))
+       (translate [-37.8 -55.3 -25.3])))
+
 (defn thumb-bl-place [shape]
   (->> shape
        (rotate (deg2rad  -4) [1 0 0])
        (rotate (deg2rad -35) [0 1 0])
        (rotate (deg2rad  52) [0 0 1])
        (translate thumborigin)
-       (translate [-56.3 -43.3 -23.5])
-       ))
+       (translate [-56.3 -43.3 -23.5])))
 
 (defn thumb-1x-layout [shape]
   (union
@@ -1252,47 +1193,43 @@
   (let [plate-height (/ (- sa-double-length mount-height) 3)
         top-plate (->> (cube mount-width plate-height web-thickness)
                        (translate [0 (/ (+ plate-height mount-height) 2)
-                                   (- plate-thickness (/ web-thickness 2))]))
-        ]
+                                   (- plate-thickness (/ web-thickness 2))]))]
+
     (union top-plate (mirror [0 1 0] top-plate))))
 
 (def larger-plate-half
   (let [plate-height (/ (- sa-double-length mount-height) 3)
         top-plate (->> (cube mount-width plate-height web-thickness)
                        (translate [0 (/ (+ plate-height mount-height) 2)
-                                   (- plate-thickness (/ web-thickness 2))]))
-        ]
+                                   (- plate-thickness (/ web-thickness 2))]))]
+
     (union top-plate (mirror [0 0 0] top-plate))))
 
 (def thumbcaps
   (union
-   (thumb-1x-layout (sa-cap 1))
+   (thumb-1x-layout (sa-cap 1))))
    ; (thumb-15x-layout (rotate (/ π 2) [0 0 1] (sa-cap 1)))
-   ))
 
 (def thumbcaps-fill
   (union
-   (thumb-1x-layout keyhole-fill)
+   (thumb-1x-layout keyhole-fill)))
    ; (thumb-15x-layout (rotate (/ π 2) [0 0 1] keyhole-fill))
-   ))
 
 (def thumb
   (union
-   (thumb-1x-layout (rotate (/ π 2) [0 0 0] single-plate))
+   (thumb-1x-layout (rotate (/ π 2) [0 0 0] single-plate))))
    ; (thumb-tr-place (rotate (/ π 2) [0 0 1] single-plate))
    ; (thumb-tr-place larger-plate)
    ; (thumb-tl-place (rotate (/ π 2) [0 0 1] single-plate))
    ; (thumb-tl-place larger-plate-half)
-   ))
 
 (def thumb-left
   (union
-   (thumb-1x-layout (rotate (/ π 2) [0 0 0] (mirror [1 0 0] single-plate)))
+   (thumb-1x-layout (rotate (/ π 2) [0 0 0] (mirror [1 0 0] single-plate)))))
    ; (thumb-tr-place (rotate (/ π 2) [0 0 1] (mirror [1 0 0] single-plate)))
    ; (thumb-tr-place larger-plate)
    ; (thumb-tl-place (rotate (/ π 2) [0 0 1] (mirror [1 0 0] single-plate)))
    ; (thumb-tl-place larger-plate-half)
-   ))
 
 ; (def thumb-post-tr (translate [(- (/ mount-width 2) post-adj)  (- (/ mount-height  1.1) post-adj) 0] web-post))
 ; (def thumb-post-tl (translate [(+ (/ mount-width -2) post-adj) (- (/ mount-height  1.1) post-adj) 0] web-post))
@@ -1388,8 +1325,7 @@
       (triangle-hulls
        (key-place (+ innercol-offset 3) lastrow web-post-tr)
        (key-place (+ innercol-offset 3) cornerrow web-post-br)
-       (key-place (+ innercol-offset 4) cornerrow web-post-bl)))))
-  )
+       (key-place (+ innercol-offset 4) cornerrow web-post-bl))))))
 
 ;;;;;;;;;;;;;;;;
 ;; Mini Thumb ;;
@@ -1462,7 +1398,6 @@
    (minithumb-1x-layout (mirror [1 0 0] single-plate))
    (minithumb-15x-layout (mirror [1 0 0] single-plate))))
 
-
 (def minithumb-post-tr (translate [(- (/ mount-width 2) post-adj)  (- (/ mount-height  2) post-adj) 0] web-post))
 (def minithumb-post-tl (translate [(+ (/ mount-width -2) post-adj) (- (/ mount-height  2) post-adj) 0] web-post))
 (def minithumb-post-bl (translate [(+ (/ mount-width -2) post-adj) (+ (/ mount-height -2) post-adj) 0] web-post))
@@ -1525,8 +1460,8 @@
     (key-place (+ innercol-offset 3) lastrow web-post-tl)
     (key-place (+ innercol-offset 3) cornerrow web-post-bl)
     (key-place (+ innercol-offset 3) lastrow web-post-tr)
-    (key-place (+ innercol-offset 3) cornerrow web-post-br)
-    )
+    (key-place (+ innercol-offset 3) cornerrow web-post-br))
+
    (triangle-hulls
     (key-place (+ innercol-offset 1) cornerrow web-post-br)
     (key-place (+ innercol-offset 2) lastrow web-post-tl)
@@ -1637,7 +1572,6 @@
    (cfthumb-15x-layout larger-plate-half)
    (cfthumb-15x-layout (mirror [1 0 0] single-plate))))
 
-
 (def cfthumb-connectors
   (union
    (triangle-hulls    ; top two
@@ -1739,14 +1673,13 @@
        (key-place (+ innercol-offset 3) cornerrow web-post-br)
        (key-place (+ innercol-offset 4) cornerrow web-post-bl))))))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Tightly thumb ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;
 
 (def tightly-thumborigin
-   (map + (key-position 1 cornerrow [(/ mount-width 2) (- (/ mount-height 2)) 0])
-        thumb-offsets))
+  (map + (key-position 1 cornerrow [(/ mount-width 2) (- (/ mount-height 2)) 0])
+       thumb-offsets))
 
 (defn tightly-thumb-place [rot move shape]
   (->> shape
@@ -1763,10 +1696,9 @@
 
 (defn tightly-thumb-layout [shape]
   (union
-    (thumb-r-place shape)
-    (thumb-m-place shape)
-    (thumb-l-place shape)
-  ))
+   (thumb-r-place shape)
+   (thumb-m-place shape)
+   (thumb-l-place shape)))
 
 (defn debug [shape]
   (color [0.5 0.5 0.5 0.5] shape))
@@ -1779,88 +1711,85 @@
 
 (def tightly-thumb-connectors
   (union
-    (triangle-hulls   ; top two
-      (thumb-m-place web-post-tr)
-      (thumb-m-place web-post-br)
-      (thumb-r-place web-post-tl)
-      (thumb-r-place web-post-bl))
-    (triangle-hulls   ; top two
-      (thumb-m-place web-post-tl)
-      (thumb-l-place web-post-tr)
-      (thumb-m-place web-post-bl)
-      (thumb-l-place web-post-br))
-    (triangle-hulls   ; top two to the main keyboard, starting on the left
-      (key-place 2 lastrow web-post-br)
-      (key-place 3 lastrow web-post-bl)
-      (key-place 2 lastrow web-post-tr)
-      (key-place 3 lastrow web-post-tl)
-      (key-place 3 cornerrow web-post-bl)
-      (key-place 3 lastrow web-post-tr)
-      (key-place 3 cornerrow web-post-br)
-      (key-place 4 cornerrow web-post-bl))
-    (triangle-hulls   ; good
-      (key-place 1 cornerrow web-post-br)
-      (key-place 2 lastrow web-post-tl)
-      (key-place 2 cornerrow web-post-bl)
-      (key-place 2 lastrow web-post-tr)
-      (key-place 2 cornerrow web-post-br)
-      (key-place 3 cornerrow web-post-bl))
-    (triangle-hulls
-      (key-place 3 lastrow web-post-tr)
-      (key-place 3 lastrow web-post-br)
-      (key-place 3 lastrow web-post-tr)
-      (key-place 4 cornerrow web-post-bl))
+   (triangle-hulls   ; top two
+    (thumb-m-place web-post-tr)
+    (thumb-m-place web-post-br)
+    (thumb-r-place web-post-tl)
+    (thumb-r-place web-post-bl))
+   (triangle-hulls   ; top two
+    (thumb-m-place web-post-tl)
+    (thumb-l-place web-post-tr)
+    (thumb-m-place web-post-bl)
+    (thumb-l-place web-post-br))
+   (triangle-hulls   ; top two to the main keyboard, starting on the left
+    (key-place 2 lastrow web-post-br)
+    (key-place 3 lastrow web-post-bl)
+    (key-place 2 lastrow web-post-tr)
+    (key-place 3 lastrow web-post-tl)
+    (key-place 3 cornerrow web-post-bl)
+    (key-place 3 lastrow web-post-tr)
+    (key-place 3 cornerrow web-post-br)
+    (key-place 4 cornerrow web-post-bl))
+   (triangle-hulls   ; good
+    (key-place 1 cornerrow web-post-br)
+    (key-place 2 lastrow web-post-tl)
+    (key-place 2 cornerrow web-post-bl)
+    (key-place 2 lastrow web-post-tr)
+    (key-place 2 cornerrow web-post-br)
+    (key-place 3 cornerrow web-post-bl))
+   (triangle-hulls
+    (key-place 3 lastrow web-post-tr)
+    (key-place 3 lastrow web-post-br)
+    (key-place 3 lastrow web-post-tr)
+    (key-place 4 cornerrow web-post-bl))
     ;above thumb-r the biggest left triangle
-    (triangle-hulls
-      (key-place 0 cornerrow web-post-br)
-      (key-place 0 cornerrow web-post-bl)
-      (thumb-r-place web-post-tl)
-    )
+   (triangle-hulls
+    (key-place 0 cornerrow web-post-br)
+    (key-place 0 cornerrow web-post-bl)
+    (thumb-r-place web-post-tl))
+
     ;above thumb-r, the middle small triangle
-    (triangle-hulls
-      (key-place 0 cornerrow web-post-br)
-      (key-place 1 cornerrow web-post-bl)
-      (thumb-r-place web-post-tl)
-    )
+   (triangle-hulls
+    (key-place 0 cornerrow web-post-br)
+    (key-place 1 cornerrow web-post-bl)
+    (thumb-r-place web-post-tl))
+
     ;above thumb-r, the right triangle
-    (triangle-hulls
-      (thumb-r-place web-post-tr)
-      (thumb-r-place web-post-tl)
-      (key-place 1 cornerrow web-post-bl)
-    )
+   (triangle-hulls
+    (thumb-r-place web-post-tr)
+    (thumb-r-place web-post-tl)
+    (key-place 1 cornerrow web-post-bl))
+
     ;thumb-r connected to cornerrow 1
-    (triangle-hulls
-      (key-place 1 cornerrow web-post-br)
-      (key-place 1 cornerrow web-post-bl)
-      (thumb-r-place web-post-tr)
-    )
+   (triangle-hulls
+    (key-place 1 cornerrow web-post-br)
+    (key-place 1 cornerrow web-post-bl)
+    (thumb-r-place web-post-tr))
+
     ;to the right of thumb-r connected with 1 point to thumb-r
-    (triangle-hulls
-      (key-place 1 cornerrow web-post-br)
-      (key-place 2 lastrow web-post-bl)
-      (thumb-r-place web-post-tr)
-    )
+   (triangle-hulls
+    (key-place 1 cornerrow web-post-br)
+    (key-place 2 lastrow web-post-bl)
+    (thumb-r-place web-post-tr))
+
     ;to the right of thumb-r connected with 2 points to thumb-r
-    (triangle-hulls 
-      (key-place 2 lastrow web-post-bl)
-      (thumb-r-place web-post-br)
-      (thumb-r-place web-post-tr)
-    )
+   (triangle-hulls
+    (key-place 2 lastrow web-post-bl)
+    (thumb-r-place web-post-br)
+    (thumb-r-place web-post-tr))
+
     ; between lastrow and lastrow-1
-    (triangle-hulls
-      (key-place 2 lastrow web-post-bl)
-      (key-place 2 lastrow web-post-tl)
-      (key-place 1 cornerrow web-post-br)
-    )
+   (triangle-hulls
+    (key-place 2 lastrow web-post-bl)
+    (key-place 2 lastrow web-post-tl)
+    (key-place 1 cornerrow web-post-br))
+
     ; between top-r and below lastrow
-    (triangle-hulls
-      (thumb-r-place web-post-br)
-      (key-place 2 lastrow web-post-bl)
-      (key-place 3 lastrow web-post-bl)
-      (key-place 2 lastrow web-post-br)
-    )
-  )
-)
+   (triangle-hulls
+    (thumb-r-place web-post-br)
+    (key-place 2 lastrow web-post-bl)
+    (key-place 3 lastrow web-post-bl)
+    (key-place 2 lastrow web-post-br))))
 
 ;switching connectors, switchplates, etc. depending on thumb-style used
 (when (= thumb-style "default")
@@ -1888,9 +1817,9 @@
   (def thumb-type tightly)
   (def thumb-type-left tightly-left)
   (def thumb-connector-type tightly-thumb-connectors)
-  (def thumbcaps-type tightly-thumbcaps)
+  (def thumbcaps-type tightly-thumbcaps))
   ;(def thumbcaps-fill-type tightly-thumb-fill))
-)
+
 ;;;;;;;;;;
 ;; Case ;;
 ;;;;;;;;;;
@@ -1907,7 +1836,7 @@
 (def left-wall-z-offset 1)
 
 (defn left-key-position [row direction]
-  (map - (key-position 0 row [(* mount-width -0.5) (* direction mount-height 0.5) 0]) [left-wall-x-offset 0 left-wall-z-offset]) )
+  (map - (key-position 0 row [(* mount-width -0.5) (* direction mount-height 0.5) 0]) [left-wall-x-offset 0 left-wall-z-offset]))
 
 (defn left-key-place [row direction shape]
   (translate (left-key-position row direction) shape))
@@ -1968,17 +1897,16 @@
      (if (<= last-15u-row (- extra-cornerrow 2))
        (for [y (range (inc last-15u-row) extra-cornerrow)]
          (union (key-wall-brace lastcol y 1 0 web-post-br lastcol (inc y) 1 0 web-post-tr)
-                (key-wall-brace lastcol (inc y) 1 0 web-post-tr lastcol (inc y) 1 0 web-post-br))))
-     )
+                (key-wall-brace lastcol (inc y) 1 0 web-post-tr lastcol (inc y) 1 0 web-post-br)))))
+
     (union (key-wall-brace lastcol 0 0 1 web-post-tr lastcol 0 1 0 web-post-tr)
            (if extra-row
              (union (for [y (range 0 (inc lastrow))] (key-wall-brace lastcol y 1 0 web-post-tr lastcol y 1 0 web-post-br))
                     (for [y (range 1 (inc lastrow))] (key-wall-brace lastcol (dec y) 1 0 web-post-br lastcol y 1 0 web-post-tr)))
              (union (for [y (range 0 lastrow)] (key-wall-brace lastcol y 1 0 web-post-tr lastcol y 1 0 web-post-br))
-                    (for [y (range 1 lastrow)] (key-wall-brace lastcol (dec y) 1 0 web-post-br lastcol y 1 0 web-post-tr)))
-             )
-           (key-wall-brace lastcol extra-cornerrow 0 -1 web-post-br lastcol extra-cornerrow 1 0 web-post-br)
-           )))
+                    (for [y (range 1 lastrow)] (key-wall-brace lastcol (dec y) 1 0 web-post-br lastcol y 1 0 web-post-tr))))
+
+           (key-wall-brace lastcol extra-cornerrow 0 -1 web-post-br lastcol extra-cornerrow 1 0 web-post-br))))
 
 (def cf-thumb-wall
   (union
@@ -2180,41 +2108,38 @@
 
 (def tightly-thumb-wall
   (union
-    (wall-brace thumb-r-place 0 -1 web-post-br (partial key-place 3 lastrow) 0 -1 web-post-bl)
-    (wall-brace thumb-r-place 0 -1 web-post-br thumb-r-place 0 -1 web-post-bl)
-    (wall-brace thumb-m-place 0 -1 web-post-br thumb-m-place 0 -1 web-post-bl)
-    (wall-brace thumb-l-place 0 -1 web-post-br thumb-l-place 0 -1 web-post-bl)
-    (wall-brace thumb-l-place 0 1 web-post-tr thumb-l-place 0 1 web-post-tl)
-    (wall-brace thumb-l-place -1 0 web-post-tl thumb-l-place -1 0 web-post-bl)
+   (wall-brace thumb-r-place 0 -1 web-post-br (partial key-place 3 lastrow) 0 -1 web-post-bl)
+   (wall-brace thumb-r-place 0 -1 web-post-br thumb-r-place 0 -1 web-post-bl)
+   (wall-brace thumb-m-place 0 -1 web-post-br thumb-m-place 0 -1 web-post-bl)
+   (wall-brace thumb-l-place 0 -1 web-post-br thumb-l-place 0 -1 web-post-bl)
+   (wall-brace thumb-l-place 0 1 web-post-tr thumb-l-place 0 1 web-post-tl)
+   (wall-brace thumb-l-place -1 0 web-post-tl thumb-l-place -1 0 web-post-bl)
     ; thumb corners
-    (wall-brace thumb-l-place -1 0 web-post-bl thumb-l-place 0 -1 web-post-bl)
-    (wall-brace thumb-l-place -1 0 web-post-tl thumb-l-place 0 1 web-post-tl)
+   (wall-brace thumb-l-place -1 0 web-post-bl thumb-l-place 0 -1 web-post-bl)
+   (wall-brace thumb-l-place -1 0 web-post-tl thumb-l-place 0 1 web-post-tl)
     ; thumb tweeners
-    (wall-brace thumb-r-place 0 -1 web-post-bl thumb-m-place 0 -1 web-post-br)
-    (wall-brace thumb-m-place 0 -1 web-post-bl thumb-l-place 0 -1 web-post-br)
+   (wall-brace thumb-r-place 0 -1 web-post-bl thumb-m-place 0 -1 web-post-br)
+   (wall-brace thumb-m-place 0 -1 web-post-bl thumb-l-place 0 -1 web-post-br)
     ;(wall-brace thumb-m-place 0 1 web-post-tl thumb-l-place 0 1 web-post-tr)
-    (wall-brace thumb-l-place -1 0 web-post-bl thumb-l-place -1 0 web-post-tl)
+   (wall-brace thumb-l-place -1 0 web-post-bl thumb-l-place -1 0 web-post-tl)
 
-    (wall-brace (partial left-key-place cornerrow -1) -1 0 web-post thumb-l-place 0 1 web-post-tr) 
-    
-    (hull
-      (left-key-place cornerrow -1 web-post)
-      (thumb-m-place web-post-tr)
-      (thumb-m-place web-post-tl)
-    )
-    (hull
-      (left-key-place cornerrow -1 web-post)
-      (key-place 0 cornerrow web-post-bl)
-      (thumb-m-place web-post-tr)
-      (thumb-r-place web-post-tl)
-    )
-    (hull
-      (thumb-m-place web-post-tl)
-      (thumb-l-place web-post-tr)
-      (left-key-place cornerrow -1 web-post)
-    )
-  )
-)
+   (wall-brace (partial left-key-place cornerrow -1) -1 0 web-post thumb-l-place 0 1 web-post-tr)
+
+   (hull
+    (left-key-place cornerrow -1 web-post)
+    (thumb-m-place web-post-tr)
+    (thumb-m-place web-post-tl))
+
+   (hull
+    (left-key-place cornerrow -1 web-post)
+    (key-place 0 cornerrow web-post-bl)
+    (thumb-m-place web-post-tr)
+    (thumb-r-place web-post-tl))
+
+   (hull
+    (thumb-m-place web-post-tl)
+    (thumb-l-place web-post-tr)
+    (left-key-place cornerrow -1 web-post))))
 
 ;switching walls depending on thumb-style used
 (def thumb-wall-type
@@ -2222,8 +2147,7 @@
     "default" default-thumb-wall
     "cf" cf-thumb-wall
     "mini" mini-thumb-wall
-    "tightly" tightly-thumb-wall
-    ))
+    "tightly" tightly-thumb-wall))
 
 (def case-walls
   (union
@@ -2234,11 +2158,11 @@
    (for [x (range 1 ncols)] (key-wall-brace x 0 0 1 web-post-tl (dec x) 0 0 1 web-post-tr))
    ; left wall
    (for [y (range 0 (- lastrow innercol-offset))] (union
-    (wall-brace (partial left-key-place y 1) -1 0 web-post (partial left-key-place y -1) -1 0 web-post)
-                                                         (hull (key-place 0 y web-post-tl)
-                                                               (key-place 0 y web-post-bl)
-                                                               (left-key-place y  1 web-post)
-                                                               (left-key-place y -1 web-post))))
+                                                   (wall-brace (partial left-key-place y 1) -1 0 web-post (partial left-key-place y -1) -1 0 web-post)
+                                                   (hull (key-place 0 y web-post-tl)
+                                                         (key-place 0 y web-post-bl)
+                                                         (left-key-place y  1 web-post)
+                                                         (left-key-place y -1 web-post))))
    (for [y (range 1 (- lastrow innercol-offset))] (union
                                                    (wall-brace (partial left-key-place (dec y) -1) -1 0 web-post (partial left-key-place y  1) -1 0 web-post)
                                                    (hull (key-place 0 y       web-post-tl)
@@ -2251,8 +2175,7 @@
    (key-wall-brace (+ innercol-offset 3) lastrow  0 -1 web-post-bl (+ innercol-offset 3) lastrow   0 -1 web-post-br)
    (key-wall-brace (+ innercol-offset 3) lastrow  0 -1 web-post-br (+ innercol-offset 4) extra-cornerrow 0 -1 web-post-bl)
    (for [x (range (+ innercol-offset 4) ncols)] (key-wall-brace x extra-cornerrow 0 -1 web-post-bl x       extra-cornerrow 0 -1 web-post-br))
-   (for [x (range (+ innercol-offset 5) ncols)] (key-wall-brace x extra-cornerrow 0 -1 web-post-bl (dec x) extra-cornerrow 0 -1 web-post-br))
-   ))
+   (for [x (range (+ innercol-offset 5) ncols)] (key-wall-brace x extra-cornerrow 0 -1 web-post-bl (dec x) extra-cornerrow 0 -1 web-post-br))))
 
 ; Offsets for the controller/trrs holder cutout
 (def holder-offset
@@ -2260,8 +2183,8 @@
     4 -3.5
     5 0
     6 (if inner-column
-          3.2
-          2.2)))
+        3.2
+        2.2)))
 
 (def notch-offset
   (case nrows
@@ -2280,7 +2203,7 @@
 (defn screw-insert-shape [bottom-radius top-radius height]
   (union
    (->> (binding [*fn* 30]
-                 (cylinder [bottom-radius top-radius] height)))))
+          (cylinder [bottom-radius top-radius] height)))))
 
 (defn screw-insert [column row bottom-radius top-radius height offset]
   (let [shift-right   (= column lastcol)
@@ -2288,59 +2211,59 @@
         shift-up      (and (not (or shift-right shift-left)) (= row 0))
         shift-down    (and (not (or shift-right shift-left)) (>= row lastrow))
         position      (if shift-up     (key-position column row (map + (wall-locate2  0  1) [0 (/ mount-height 2) 0]))
-                        (if shift-down  (key-position column row (map - (wall-locate2  0 -2.5) [0 (/ mount-height 2) 0]))
-                          (if shift-left (map + (left-key-position row 0) (wall-locate3 -1 0))
-                            (key-position column row (map + (wall-locate2  1  0) [(/ mount-width 2) 0 0])))))]
+                          (if shift-down  (key-position column row (map - (wall-locate2  0 -2.5) [0 (/ mount-height 2) 0]))
+                              (if shift-left (map + (left-key-position row 0) (wall-locate3 -1 0))
+                                  (key-position column row (map + (wall-locate2  1  0) [(/ mount-width 2) 0 0])))))]
     (->> (screw-insert-shape bottom-radius top-radius height)
          (translate (map + offset [(first position) (second position) (/ height 2)])))))
 
 ; Offsets for the screw inserts dependent on extra-row & pinky-15u
 (when (and pinky-15u extra-row)
-    (def screw-offset-tr [1 7 0])
-    (def screw-offset-br [7 14 0]))
+  (def screw-offset-tr [1 7 0])
+  (def screw-offset-br [7 14 0]))
 (when (and pinky-15u (false? extra-row))
-    (def screw-offset-tr [1 7 0])
-    (def screw-offset-br [6.5 15.5 0]))
+  (def screw-offset-tr [1 7 0])
+  (def screw-offset-br [6.5 15.5 0]))
 (when (and (false? pinky-15u) extra-row)
-    (def screw-offset-tr [-3.5 6.5 0])
-    (def screw-offset-br [-3.5 -6.5 0]))
+  (def screw-offset-tr [-3.5 6.5 0])
+  (def screw-offset-br [-3.5 -6.5 0]))
 (when (and (false? pinky-15u) (false? extra-row))
-    (def screw-offset-tr [-7 6.5 0])
-    (def screw-offset-br [-4 17 0]))
-    
+  (def screw-offset-tr [-7 6.5 0])
+  (def screw-offset-br [-4 17 0]))
+
 ; Offsets for the screw inserts dependent on thumb-style & inner-column
 (when (and (= thumb-style "cf") inner-column)
-    (def screw-offset-bl [9 4 0])
-    (def screw-offset-tm [9.5 -4.5 0])
-    (def screw-offset-bm [13 -7 0]))
+  (def screw-offset-bl [9 4 0])
+  (def screw-offset-tm [9.5 -4.5 0])
+  (def screw-offset-bm [13 -7 0]))
 (when (and (= thumb-style "cf") (false? inner-column))
-    (def screw-offset-bl [-7.7 2 0])
-    (def screw-offset-tm [9.5 -4.5 0])
-    (def screw-offset-bm [13 -7 0]))
+  (def screw-offset-bl [-7.7 2 0])
+  (def screw-offset-tm [9.5 -4.5 0])
+  (def screw-offset-bm [13 -7 0]))
 (when (and (= thumb-style "mini") inner-column)
-    (def screw-offset-bl [14 8 0])
-    (def screw-offset-tm [9.5 -4.5 0])
-    (def screw-offset-bm [-1 -7 0]))
+  (def screw-offset-bl [14 8 0])
+  (def screw-offset-tm [9.5 -4.5 0])
+  (def screw-offset-bm [-1 -7 0]))
 (when (and (= thumb-style "mini") (false? inner-column))
-    (def screw-offset-bl [1 4.2 0])
+  (def screw-offset-bl [1 4.2 0])
     ;(def screw-offset-tm [8 -4.5 0])
-    (def screw-offset-bm [-1.2 -6 0]))
+  (def screw-offset-bm [-1.2 -6 0]))
 (when (and (= thumb-style "default") inner-column)
-    (def screw-offset-bl [5 -6 0])
-    (def screw-offset-tm [9.5 -4.5 0])
-    (def screw-offset-bm [8 -1 0]))
+  (def screw-offset-bl [5 -6 0])
+  (def screw-offset-tm [9.5 -4.5 0])
+  (def screw-offset-bm [8 -1 0]))
 (when (and (= thumb-style "default") (false? inner-column))
-    (def screw-offset-bl [-11.1 -7.7 0])
+  (def screw-offset-bl [-11.1 -7.7 0])
     ; (def screw-offset-tm [9.5 -4.5 0])
-    (def screw-offset-bm [1 0 0]))
+  (def screw-offset-bm [1 0 0]))
 (when (and (= thumb-style "tightly") inner-column)
-    (def screw-offset-bl [5 -2 0])
-    (def screw-offset-tm [9.5 20 0])
-    (def screw-offset-bm [8 -1 0]))
+  (def screw-offset-bl [5 -2 0])
+  (def screw-offset-tm [9.5 20 0])
+  (def screw-offset-bm [8 -1 0]))
 (when (and (= thumb-style "tightly") (false? inner-column))
-    (def screw-offset-bl [-6 -6.5 0])
+  (def screw-offset-bl [-6 -6.5 0])
     ;(def screw-offset-tm [9.5 20 0])
-    (def screw-offset-bm [8 13.8 0]))
+  (def screw-offset-bm [8 13.8 0]))
 
 (when (and (= nrows 4) (= ncols 5))
   (def screw-offset-tr [-5.18 8.55 0])
@@ -2360,7 +2283,7 @@
   (def screw-offset-tl [9.8 7.8 0]))
 
 (defn screw-insert-all-shapes [bottom-radius top-radius height]
-  (union (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl) 
+  (union (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl)
          (screw-insert 0 lastrow   bottom-radius top-radius height screw-offset-bl)
          (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
          (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
@@ -2392,15 +2315,15 @@
                (key-place lastcol row web-post-br)
                (key-place lastcol row wide-post-br)))
             (if-not (= last-15u-row extra-cornerrow) (for [row (range last-15u-row (inc last-15u-row))]
-              (triangle-hulls
-               (key-place lastcol (inc row) web-post-tr)
-               (key-place lastcol row wide-post-br)
-               (key-place lastcol (inc row) web-post-br))))
+                                                       (triangle-hulls
+                                                        (key-place lastcol (inc row) web-post-tr)
+                                                        (key-place lastcol row wide-post-br)
+                                                        (key-place lastcol (inc row) web-post-br))))
             (if-not (= first-15u-row 0) (for [row (range (dec first-15u-row) first-15u-row)]
-              (triangle-hulls
-               (key-place lastcol row web-post-tr)
-               (key-place lastcol (inc row) wide-post-tr)
-               (key-place lastcol row web-post-br))))
+                                          (triangle-hulls
+                                           (key-place lastcol row web-post-tr)
+                                           (key-place lastcol (inc row) wide-post-tr)
+                                           (key-place lastcol row web-post-br))))
 
             ;; Column connections
             (for [row (range first-15u-row last-15u-row)]
@@ -2410,16 +2333,15 @@
                (key-place lastcol (inc row) web-post-tr)
                (key-place lastcol (inc row) wide-post-tr)))
             (if-not (= last-15u-row extra-cornerrow) (for [row (range last-15u-row (inc last-15u-row))]
-              (triangle-hulls
-               (key-place lastcol row web-post-br)
-               (key-place lastcol row wide-post-br)
-               (key-place lastcol (inc row) web-post-tr))))
+                                                       (triangle-hulls
+                                                        (key-place lastcol row web-post-br)
+                                                        (key-place lastcol row wide-post-br)
+                                                        (key-place lastcol (inc row) web-post-tr))))
             (if-not (= first-15u-row 0) (for [row (range (dec first-15u-row) first-15u-row)]
-              (triangle-hulls
-               (key-place lastcol row web-post-br)
-               (key-place lastcol (inc row) wide-post-tr)
-               (key-place lastcol (inc row) web-post-tr))))
-))))
+                                          (triangle-hulls
+                                           (key-place lastcol row web-post-br)
+                                           (key-place lastcol (inc row) wide-post-tr)
+                                           (key-place lastcol (inc row) web-post-tr))))))))
 
 ;;;;;;;;;;;;;;;;;;
 ;;; IC fixture ;;;
@@ -2427,13 +2349,12 @@
 
 (def usb-hole
   (union
-    (translate [0 0 10]
-    (minkowski
-      (binding [*fn* 100] (cylinder 0.95 10))
-      (cube 7.34 1.56 10)
-    )
-    )
-    ; (translate [0 1.91 10.7]
+   (translate [0 0 10]
+              (minkowski
+               (binding [*fn* 100] (cylinder 0.95 10))
+               (cube 7.34 1.56 10)))))
+
+; (translate [0 1.91 10.7]
     ;   (cube 12.3 4.18 18.6)
     ; )
     ; (translate [-5.62 -0.58 10.7]
@@ -2445,22 +2366,18 @@
     ; (translate [0 4.5 20]
     ;   (cube 2 5 5)
     ; )
-  )
-)
 
 (def trrs-hole
   (union
-    (translate [0 0 10]
-      (binding [*fn* 100] (cylinder 3.2 20))
-    )
+   (translate [0 0 10]
+              (binding [*fn* 100] (cylinder 3.2 20)))))
+
     ; (translate [0 0.85 11.2]
     ;   (cube 10.5 8 17.6)
     ; )
     ; (translate [0 4.5 20]
     ;   (cube 2 5 5)
     ; )
-  )
-)
 
 (def ic-depth 35)
 (def ic-width 18.6)
@@ -2469,33 +2386,27 @@
 (def ic-solder-width 3.5)
 (def ic-solder-height 2)
 (def ic-solder-cube
-    (cube ic-solder-width ic-depth ic-solder-height)
-)
+  (cube ic-solder-width ic-depth ic-solder-height))
 
 (def ic-border 2)
 
 (def ic-hole
   (translate [0 (/ ic-depth -2) (/ ic-height 2)]
-    (union
-      (cube ic-width ic-depth ic-height)
-      (translate [(- (/ ic-width 2) (/ ic-solder-width 2)) 0 (/ ic-height -2)]
-        ic-solder-cube)
-      (translate [(+ (/ ic-width -2) (/ ic-solder-width 2)) 0 (/ ic-height -2)]
-        ic-solder-cube)
-    )
-  )
-
-)
+             (union
+              (cube ic-width ic-depth ic-height)
+              (translate [(- (/ ic-width 2) (/ ic-solder-width 2)) 0 (/ ic-height -2)]
+                         ic-solder-cube)
+              (translate [(+ (/ ic-width -2) (/ ic-solder-width 2)) 0 (/ ic-height -2)]
+                         ic-solder-cube))))
 
 (defn screw-insert-ic-fixture [bottom-radius top-radius height]
-  (union 
-         (screw-insert 0 0         bottom-radius top-radius (/ height 2) screw-offset-tl) 
+  (union
+   (screw-insert 0 0         bottom-radius top-radius (/ height 2) screw-offset-tl)
          ; (screw-insert 0 lastrow   bottom-radius top-radius (/ height 2) screw-offset-bl)
          ; (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
          ; (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
-         (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm)
+   (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm)))
          ; (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm)
-  ))
 
 (def screw-insert-ic-height 5)
 
@@ -2512,12 +2423,12 @@
 ;           2.2)))
 
 (def ic-fixture-holder
-    (translate [0 0 (/ (+ ic-height ic-border) 2)]
-      (difference
-        (translate [0 (/ (+ ic-depth ic-border) -2) 0] 
-          (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border))
-        )
-        ic-hole
+  (translate [0 0 (/ (+ ic-height ic-border) 2)]
+             (difference
+              (translate [0 (/ (+ ic-depth ic-border) -2) 0]
+                         (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border)))
+
+              ic-hole)))
         ; (translate [7 0 6]
         ;   (rotate [(deg2rad 90) 0 0]
         ;     usb-hole
@@ -2528,9 +2439,6 @@
         ;     trrs-hole
         ;   )
         ; )
-      )
-    )
-  )
 
 ; Cutout for controller/trrs jack holder
 ; (def usb-holder-ref (key-position 0 0 (map - (wall-locate2  0  -1) [0 (/ mount-height 2) 0])))
@@ -2539,367 +2447,280 @@
 
 (def ic-fixture
   (union
-    ic-holder-translate
+   ic-holder-translate
     ; (translate [0 0 3]
-      (difference 
-        screw-insert-outers-ic
-        screw-insert-inner-ic
-      )
+   (difference
+    screw-insert-outers-ic
+    screw-insert-inner-ic)))
+
     ; )
-  )
-)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Hand rest case attachement ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def insert-shape
   (translate [0 2 6.4]
-    (rotate [(deg2rad 90) 0 0]
-      (binding [*fn* 30] (cylinder 2.7 5.5))
-      (translate [0 2 -2.3]
-        (cube 1 5 10)
-      )
-    )
-  )
-)
+             (rotate [(deg2rad 90) 0 0]
+                     (binding [*fn* 30] (cylinder 2.7 5.5))
+                     (translate [0 2 -2.3]
+                                (cube 1 5 10)))))
+
 (def insert-socket
   (difference
-  (translate [0 2 6.4]
-    (rotate [(deg2rad 90) 0 0]
-      (binding [*fn* 30] (cylinder 3.5 5.5))
-    )
-  )
-  insert-shape
-      (translate [0 0 10]
-        (cube 1 15 10)
-      )
-  )
-) 
+   (translate [0 2 6.4]
+              (rotate [(deg2rad 90) 0 0]
+                      (binding [*fn* 30] (cylinder 3.5 5.5))))
+
+   insert-shape
+   (translate [0 0 10]
+              (cube 1 15 10))))
 
 (def wrist-attach-rest
   (translate [0 0 2.9]
-    (union
-      (translate [0 0 2.9]
-        (rotate [(/ pi 2) 0 0]
-          (binding [*fn* 100] (cylinder 4 20))))
-      (cube 8 20 5.8)
-    )
-  )
-)
+             (union
+              (translate [0 0 2.9]
+                         (rotate [(/ pi 2) 0 0]
+                                 (binding [*fn* 100] (cylinder 4 20))))
+              (cube 8 20 5.8))))
 
 (def seats-on-rest
   (union
-    (translate [hook1-placement-x (- (+ hand-rest-position-y (/ hand-rest-width 2)) 10) 0]
-      wrist-attach-rest
-    )
-    (translate [hook2-placement-x (- (+ hand-rest-position-y (/ hand-rest-width 2)) 10) 0]
-      wrist-attach-rest
-    )
-  )
-)
+   (translate [hook1-placement-x (- (+ hand-rest-position-y (/ hand-rest-width 2)) 10) 0]
+              wrist-attach-rest)
+
+   (translate [hook2-placement-x (- (+ hand-rest-position-y (/ hand-rest-width 2)) 10) 0]
+              wrist-attach-rest)))
 
 (defn joiner [length]
   (translate [0 0 2.9]
-    (difference
-      (union
-        (translate [0 0 2.9]
-          (rotate [(/ pi 2) 0 0]
-            (binding [*fn* 100] (cylinder 4 length))))
-        (cube 8 length 5.8)
-      )
-      (translate [0 (- length 10.2) 3.65]
-        (rotate [(/ pi 2) 0 0]
-          (binding [*fn* 100] (cylinder 2.7 length))
-        )
-      )
-    )
-  )
-)
+             (difference
+              (union
+               (translate [0 0 2.9]
+                          (rotate [(/ pi 2) 0 0]
+                                  (binding [*fn* 100] (cylinder 4 length))))
+               (cube 8 length 5.8))
+
+              (translate [0 (- length 10.2) 3.65]
+                         (rotate [(/ pi 2) 0 0]
+                                 (binding [*fn* 100] (cylinder 2.7 length)))))))
 
 (def wrist-attach-case
   (union
-    (translate [hook1-placement-x hook1-placement-y 0]
-      insert-shape
-    )
-    (translate [hook2-placement-x hook2-placement-y 0]
-      insert-shape
-    )
-  )
-)
+   (translate [hook1-placement-x hook1-placement-y 0]
+              insert-shape)
+
+   (translate [hook2-placement-x hook2-placement-y 0]
+              insert-shape)))
+
 (def wrist-attach-case-socket
   (union
-    (translate [hook1-placement-x hook1-placement-y 0]
-      insert-socket
-    )
-    (translate [hook2-placement-x hook2-placement-y 0]
-      insert-socket
-    )
-  )
-)
+   (translate [hook1-placement-x hook1-placement-y 0]
+              insert-socket)
 
+   (translate [hook2-placement-x hook2-placement-y 0]
+              insert-socket)))
 
-(def length1  (* (- (+ hand-rest-position-y (/ hand-rest-width 2)) hook1-placement-y) -1) )
-(def length2  (* (- (+ hand-rest-position-y (/ hand-rest-width 2)) hook2-placement-y) -1) )
-   
+(def length1  (* (- (+ hand-rest-position-y (/ hand-rest-width 2)) hook1-placement-y) -1))
+(def length2  (* (- (+ hand-rest-position-y (/ hand-rest-width 2)) hook2-placement-y) -1))
+
 (def joiners
   (union
-    (translate [hook1-placement-x (+ hand-rest-position-y (+ (/ length1 2) (/ hand-rest-width 2))) 0]
-      (joiner length1) )
-    (translate [hook2-placement-x (+ hand-rest-position-y (+ (/ length2 2) (/ hand-rest-width 2))) 0]
-      (joiner length2) )
-  )
-)
+   (translate [hook1-placement-x (+ hand-rest-position-y (+ (/ length1 2) (/ hand-rest-width 2))) 0]
+              (joiner length1))
+   (translate [hook2-placement-x (+ hand-rest-position-y (+ (/ length2 2) (/ hand-rest-width 2))) 0]
+              (joiner length2))))
 
 (def old-fix
   (difference
-    (translate [0 2 3.75]
-    (cube 5.3 4 7.5))
-    insert-shape
-  )
-)
+   (translate [0 2 3.75]
+              (cube 5.3 4 7.5))
+   insert-shape))
 
-;(spit "things/test1.scad"
-;      (write-scad
-;        joiners
-;      )
-;)
+; (write-scad-file "test1" joiners)
 
 ;;;;;;;;;;;;;;;;;
 ;;; Hand rest ;;;
 ;;;;;;;;;;;;;;;;;
 
 (def hand-rest-cube
-    (extrude-linear {:height hand-rest-height :scale hand-rest-top :fn 100}
-      (minkowski
-        (square (- hand-rest-length (* hand-rest-radius 2)) (- hand-rest-width (* hand-rest-radius 2)))
-        (binding [*fn* 100] (circle hand-rest-radius))
-      )
-    )
-)
+  (extrude-linear {:height hand-rest-height :scale hand-rest-top :fn 100}
+                  (minkowski
+                   (square (- hand-rest-length (* hand-rest-radius 2)) (- hand-rest-width (* hand-rest-radius 2)))
+                   (binding [*fn* 100] (circle hand-rest-radius)))))
 
 (def hand-rest-slope
-  (translate [0 0 
+  (translate [0 0
               (+ 0.00 (- (/ hand-rest-height 2)
-                (+
-                  (*
-                    (Math/tan (deg2rad hand-rest-y))
-                    (/ (* hand-rest-top hand-rest-length) 2)
-                  )
-                  (*
-                    (Math/tan (deg2rad hand-rest-x))
-                    (/ (* hand-rest-top hand-rest-width) 2)
-                  )
-                )
-               ))]
-    (rotate [(deg2rad hand-rest-x) (deg2rad hand-rest-y) 0]
-    (translate [0 0 (* 25 hand-rest-height)]
-      (extrude-linear {:height (* 50 hand-rest-height) :scale 2 :fn 100}
-        (square (* 50 hand-rest-length) (* 50 hand-rest-width))
-      ) 
-    )
-    )
-  )
-)
+                         (+
+                          (*
+                           (Math/tan (deg2rad hand-rest-y))
+                           (/ (* hand-rest-top hand-rest-length) 2))
+
+                          (*
+                           (Math/tan (deg2rad hand-rest-x))
+                           (/ (* hand-rest-top hand-rest-width) 2)))))]
+
+             (rotate [(deg2rad hand-rest-x) (deg2rad hand-rest-y) 0]
+                     (translate [0 0 (* 25 hand-rest-height)]
+                                (extrude-linear {:height (* 50 hand-rest-height) :scale 2 :fn 100}
+                                                (square (* 50 hand-rest-length) (* 50 hand-rest-width)))))))
 
 (def hand-rest-insert
   (translate [0 0 (* -1 hand-rest-lip-height)]
-    (intersection
-      (extrude-linear {:height 1000}
-        (project
-          (translate [0 0 1000]
-            (intersection
-              (scale [(/ (- hand-rest-length (* 2 hand-rest-lip-width)) hand-rest-length)
-              (/ (- hand-rest-width (* 2 hand-rest-lip-width)) hand-rest-width) 
-              1] hand-rest-cube)
-              hand-rest-slope
-            )
-          )
-        )
-      )
-      hand-rest-slope
-    )
-  )
-)
+             (intersection
+              (extrude-linear {:height 1000}
+                              (project
+                               (translate [0 0 1000]
+                                          (intersection
+                                           (scale [(/ (- hand-rest-length (* 2 hand-rest-lip-width)) hand-rest-length)
+                                                   (/ (- hand-rest-width (* 2 hand-rest-lip-width)) hand-rest-width)
+                                                   1] hand-rest-cube)
+                                           hand-rest-slope))))
+
+              hand-rest-slope)))
 
 (def hand-rest-pads
   (union
-    (translate [(- (/ hand-rest-length 2) pad-off)
-                (- (/ hand-rest-width 2) pad-off)
-                (+ (/ hand-rest-height -2) (/ pad-z 2))]
-    (binding [*fn* 100] (cylinder pad-r pad-z))
-    )
-    (translate [(+ (/ hand-rest-length -2) pad-off)
-                (- (/ hand-rest-width 2) pad-off)
-                (+ (/ hand-rest-height -2) (/ pad-z 2))]
-    (binding [*fn* 100] (cylinder pad-r pad-z))
-    )
-    (translate [(- (/ hand-rest-length 2) pad-off)
-                (+ (/ hand-rest-width -2) pad-off)
-                (+ (/ hand-rest-height -2) (/ pad-z 2))]
-    (binding [*fn* 100] (cylinder pad-r pad-z))
-    )
-    (translate [(+ (/ hand-rest-length -2) pad-off)
-                (+ (/ hand-rest-width -2) pad-off)
-                (+ (/ hand-rest-height -2) (/ pad-z 2))]
-    (binding [*fn* 100] (cylinder pad-r pad-z))
-    )
-  )
-)
+   (translate [(- (/ hand-rest-length 2) pad-off)
+               (- (/ hand-rest-width 2) pad-off)
+               (+ (/ hand-rest-height -2) (/ pad-z 2))]
+              (binding [*fn* 100] (cylinder pad-r pad-z)))
+
+   (translate [(+ (/ hand-rest-length -2) pad-off)
+               (- (/ hand-rest-width 2) pad-off)
+               (+ (/ hand-rest-height -2) (/ pad-z 2))]
+              (binding [*fn* 100] (cylinder pad-r pad-z)))
+
+   (translate [(- (/ hand-rest-length 2) pad-off)
+               (+ (/ hand-rest-width -2) pad-off)
+               (+ (/ hand-rest-height -2) (/ pad-z 2))]
+              (binding [*fn* 100] (cylinder pad-r pad-z)))
+
+   (translate [(+ (/ hand-rest-length -2) pad-off)
+               (+ (/ hand-rest-width -2) pad-off)
+               (+ (/ hand-rest-height -2) (/ pad-z 2))]
+              (binding [*fn* 100] (cylinder pad-r pad-z)))))
 
 (def hand-rest
   (difference
-    hand-rest-cube
-    hand-rest-slope
-    hand-rest-insert
-    hand-rest-pads
-  )
-)
+   hand-rest-cube
+   hand-rest-slope
+   hand-rest-insert
+   hand-rest-pads))
 
 (def hand-rest-final
   (union
-    (translate [hand-rest-position-x hand-rest-position-y (/ hand-rest-height 2)]
-      hand-rest
-    )
-    seats-on-rest
-    joiners
-  )
-)
+   (translate [hand-rest-position-x hand-rest-position-y (/ hand-rest-height 2)]
+              hand-rest)
+
+   seats-on-rest
+   joiners))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Bottom plate generation ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (def model-right-plate-before
-  (project  
-    (extrude-linear {:height 3}
-      (difference
-        (fill
-          (cut
-            case-walls
-          )
-        ) 
-        (cut
-          screw-insert-screw-holes
-        )
-      )
-    )
-  )
-)
+  (project
+   (extrude-linear {:height 3}
+                   (difference
+                    (fill
+                     (cut
+                      case-walls))
 
+                    (cut
+                     screw-insert-screw-holes)))))
 
 (def model-right-plate
   (project
-    (extrude-linear {:height 3}
-      (scale [0.996 0.996 0]
-        (difference
-          (fill
-            (cut
-              case-walls
-            )
-          )
-          (cut
-            case-walls
-          )
-          (cut
-            screw-insert-screw-holes
-          )
-        )
-      )
-    )
-  )
-)
+   (extrude-linear {:height 3}
+                   (scale [0.996 0.996 0]
+                          (difference
+                           (fill
+                            (cut
+                             case-walls))
+
+                           (cut
+                            case-walls)
+
+                           (cut
+                            screw-insert-screw-holes))))))
 
 (defn plate-pad [offset]
   (translate offset
-    (binding [*fn* 100] (cylinder pad-r pad-z))
-  )
-)
+             (binding [*fn* 100] (cylinder pad-r pad-z))))
 
 (def text-z 0.75)
 
 (when (= thumb-style "default")
   (def plate-pad-br [-85.2 -71.6 (/ pad-z 2)])
-  (def plate-pad-bm [-56 -95 (/ pad-z 2)])
-)
+  (def plate-pad-bm [-56 -95 (/ pad-z 2)]))
+
 (when (= thumb-style "mini")
   (def plate-pad-br [-80 -52 0])
-  (def plate-pad-bm [-59 -81 0])
-)
+  (def plate-pad-bm [-59 -81 0]))
+
 (when (= thumb-style "tightly")
   (def plate-pad-br [-85 -66 0])
-  (def plate-pad-bm [-17 -48 0])
-)
+  (def plate-pad-bm [-17 -48 0]))
 
 (when (and (= nrows 4) (= ncols 5))
   (def plate-pad-bl [22.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [21 18.4 (/ pad-z 2)])
   (def plate-pad-tr [-59.3 30.5 (/ pad-z 2)])
   (def text-r [-30 -17 text-z])
-  (def text-l [-70 -17 text-z])
-)
+  (def text-l [-70 -17 text-z]))
+
 (when (and (= nrows 4) (= ncols 6))
   (def plate-pad-bl [43.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [50.8 11.9 (/ pad-z 2)])
   (def plate-pad-tr [-59.1 30.7 (/ pad-z 2)])
   (def text-r [-40 -17 text-z])
-  (def text-l [-60 -17 text-z])
-)
+  (def text-l [-60 -17 text-z]))
+
 (when (and (= nrows 5) (= ncols 6))
   (def plate-pad-bl [43.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [51.2 30.8 (/ pad-z 2)])
   (def plate-pad-tr [-54 50.3 (/ pad-z 2)])
   (def text-r [-40 -8 text-z])
-  (def text-l [-60 -8 text-z])
-)
+  (def text-l [-60 -8 text-z]))
+
 (when (and (= nrows 6) (= ncols 6))
   (def plate-pad-bl [43.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [44 55 (/ pad-z 2)])
   (def plate-pad-tr [-46 67 (/ pad-z 2)])
   (def text-r [-43 5 text-z])
-  (def text-l [-58 5 text-z])
-)
+  (def text-l [-58 5 text-z]))
 
 (def plate-pads-together
   (union
-    (plate-pad plate-pad-br)
-    (plate-pad plate-pad-bm)
-    (plate-pad plate-pad-bl)
-    (plate-pad plate-pad-tr)
-    (plate-pad plate-pad-tl)
-  )
-)
+   (plate-pad plate-pad-br)
+   (plate-pad plate-pad-bm)
+   (plate-pad plate-pad-bl)
+   (plate-pad plate-pad-tr)
+   (plate-pad plate-pad-tl)))
 
 (defn plate-text [offset]
   (rotate [0 0 pi]
-    (translate offset
-      (extrude-linear {:height 1.5}
-        (text "K33B.com" :size 15 :font "Oxanium:style=ExtraBold")
-      )
-    )
-  )
-)
+          (translate offset
+                     (extrude-linear {:height 1.5}
+                                     (text "K33B.com" :size 15 :font "Oxanium:style=ExtraBold")))))
 
 (defn plate-printed [pos]
   (mirror [pos 0 0]
-  (rotate [pi 0 0]
-    (difference
-      (extrude-linear {:height 3 :center false}
-        model-right-plate
-      )
-      (translate [0 0 0]
-        (screw-insert-all-shapes 3.25 1.75 2)
-      )
-      (screw-insert-all-shapes 3 3 1)
-      plate-pads-together
-      (mirror [0 1 0]
-        (mirror [pos 0 0]
-          (if (= pos 0) (plate-text text-r)(plate-text text-l))
-        )
-      )
-    )
-  )
-  )
-)
+          (rotate [pi 0 0]
+                  (difference
+                   (extrude-linear {:height 3 :center false}
+                                   model-right-plate)
+
+                   (translate [0 0 0]
+                              (screw-insert-all-shapes 3.25 1.75 2))
+
+                   (screw-insert-all-shapes 3 3 1)
+                   plate-pads-together
+                   (mirror [0 1 0]
+                           (mirror [pos 0 0]
+                                   (if (= pos 0) (plate-text text-r) (plate-text text-l))))))))
 
 ;;;;;;;;;;;;;;;;
 ;;; Hotfixes ;;;
@@ -2909,167 +2730,91 @@
 ;;; Exporting ;;;
 ;;;;;;;;;;;;;;;;;
 
-(def model-right 
+(def model-right
   (difference
-    (union
-      key-holes
-      key-holes-inner
-      pinky-connectors
-      extra-connectors
-      connectors
-      inner-connectors
-      thumb-type
-      thumb-connector-type
-      (difference
-        (union
-          case-walls
-          (translate [0 0 3]
-            screw-insert-outers
-          )
+   (union
+    key-holes
+    key-holes-inner
+    pinky-connectors
+    extra-connectors
+    connectors
+    inner-connectors
+    thumb-type
+    thumb-connector-type
+    (difference
+     (union
+      case-walls
+      (translate [0 0 3]
+                 screw-insert-outers))
+
           ; wrist-attach-case-socket
-        )
-        usb-holder-space
-        usb-holder-notch
-        (translate [0 0 3]
-          screw-insert-holes
-        )
+
+     usb-holder-space
+     usb-holder-notch
+     (translate [0 0 3]
+                screw-insert-holes)))
+
         ; wrist-attach-case
-      )
-    )
-    (translate [0 0 -20]
-      (cube 350 350 40)
-    )
-  )
-)
+
+   (translate [0 0 -20]
+              (cube 350 350 40))))
 
 (def model-left
   (mirror [1 0 0]
-  (difference
-    (union
-      key-holes-left
-      key-holes-inner
-      pinky-connectors
-      extra-connectors
-      connectors
-      inner-connectors
-      thumb-type-left
-      thumb-connector-type
-      (difference
-        (union
-          case-walls
-          (translate [0 0 3]
-            screw-insert-outers
-          )
-          ; wrist-attach-case
-        )
-        usb-holder-space
-        usb-holder-notch
-        (translate [0 0 3]
-          screw-insert-holes
-        )
-        ; wrist-attach-case
-      )
-    )
-    (translate [0 0 -20]
-      (cube 350 350 40)
-    )
-  )
-  )
-)
+          (difference
+           (union
+            key-holes-left
+            key-holes-inner
+            pinky-connectors
+            extra-connectors
+            connectors
+            inner-connectors
+            thumb-type-left
+            thumb-connector-type
+            (difference
+             (union
+              case-walls
+              (translate [0 0 3]
+                         screw-insert-outers))
 
-(if (= thumb-style "default")[
-  (def folder (str "things/6key/"nrows"x"ncols"/6key-"nrows"x"ncols"-"))
-  (def img (str "things/img/6key-"nrows"x"ncols"-"))])
+           ; wrist-attach-case
 
-(if (= thumb-style "mini")[
-  (def folder (str "things/5key/"nrows"x"ncols"/5key-"nrows"x"ncols"-"))
-  (def img (str "things/img/5key-"nrows"x"ncols"-"))])
+             usb-holder-space
+             usb-holder-notch
+             (translate [0 0 3]
+                        screw-insert-holes)))
 
-(if (= thumb-style "tightly")[
-  (def folder (str "things/3key/"nrows"x"ncols"/3key-"nrows"x"ncols"-"))
-  (def img (str "things/img/3key-"nrows"x"ncols"-"))])
+         ; wrist-attach-case
 
-; (spit (str img"rest.scad")
-;   (write-scad
-;     (union
-;       hand-rest-final
-;       model-right
-;     )
-;   )
-; )
+           (translate [0 0 -20]
+                      (cube 350 350 40)))))
+
+; (write-scad-file "right-ic" ic-fixture)
 ;
-; (spit (str img"right.scad")
-;   (write-scad
-;     (union
-;       model-right
-;     )
-;   )
-; )
+; (write-scad-file "left-ic"
+;                  (mirror [1 0 0]
+;                          ic-fixture))
 
-(spit (str folder"right-ic.scad")
-  (write-scad
-    ic-fixture
-  )
-)
-            
-(spit (str folder"left-ic.scad")
-  (write-scad
-    (mirror [1 0 0]
-      ic-fixture
-    )
-  )
-)
-;
-; (spit (str folder"right-rest.scad")
-;   (write-scad
-;     (union
-;       hand-rest-final
-;     )
-;   )
-; )
-;
-; (spit (str folder"left-rest.scad")
-;   (write-scad
-;     (mirror [1 0 0]
-;       hand-rest-final
-;     )
-;   )
-; )
-;
-(spit (str folder"right.scad")
-  (write-scad
-    model-right
-    ic-fixture
-  )
-)
+; (write-scad-file "right-rest" hand-rest-final)
+; (write-scad-file "left-rest"
+;                  (mirror [1 0 0]
+;                          hand-rest-final))
 
-(spit (str folder"left.scad")
-  (write-scad
-      model-left
-    (mirror [1 0 0]
-      ic-fixture
-    )
-  )
-)
-
-(spit (str folder"right-plate.scad")
-  (write-scad
-    (difference
-      (plate-printed 0)
-      ;(plate-text text-x text-y)
-    )
-  )
-)
+; (write-scad-file "right"
+;                  (union
+;                   model-right
+;                   ic-fixture))
 ;
-(spit (str folder"left-plate.scad")
-  (write-scad
-    (difference
-      ; (mirror [1 0 0]
-      (plate-printed 1)
-      ; )
-      ;(plate-text text-x text-y)
-    )
-  )
-)
+; (write-scad-file "left"
+;                  (union
+;                   model-left
+;                   (mirror [1 0 0]
+;                           ic-fixture)))
+;
+; (write-scad-file "right-plate"
+;                  (plate-printed 0))
+;
+; (write-scad-file "left-plate"
+;                  (plate-printed 1))
 
 (defn -main [dum] 1)  ; dummy to make it easier to batch
