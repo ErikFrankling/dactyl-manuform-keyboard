@@ -1,15 +1,46 @@
-(ns dactyl-keyboard.dactyl
+(ns dactyl
   (:refer-clojure :exclude [use import])
   (:require [clojure.core.matrix :refer [array matrix mmul]]
-            [scad-clj.scad :refer :all]
+            [scad-clj.scad :refer :all] ; needed so we can change the generation to work with the :fill method
             [scad-clj.model :refer :all]
-            [unicode-math.core :refer :all]))
+            [unicode-math.core :refer [π]]
+            [clojure.java.io :as io]))
     ;(use (incanter core stats charts io)))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Added method ;;
 ;;;;;;;;;;;;;;;;;;
 
+(def output-dir "scad/")
+
+(defn delete-directory-recursive
+  "Recursively delete a directory."
+  [^java.io.File file]
+  ;; when `file` is a directory, list its entries and call this
+  ;; function with each entry. can't `recur` here as it's not a tail
+  ;; position, sadly. could cause a stack overflow for many entries?
+  ;; thanks to @nikolavojicic for the idea to use `run!` instead of
+  ;; `doseq` :)
+  (when (.isDirectory file)
+    (run! delete-directory-recursive (.listFiles file)))
+  ;; delete the file or directory. if it it's a file, it's easily
+  ;; deletable. if it's a directory, we already have deleted all its
+  ;; contents with the code above (remember?)
+  (io/delete-file file))
+
+(if (.exists (java.io.File. output-dir))
+  ;; if the directory exists, delete it
+  (delete-directory-recursive (java.io.File. output-dir)))
+
+; this method makes a scad file in the output folder making sure the folder exists
+(defn write-scad-file [filename content]
+  (let [path (str output-dir filename ".scad")]
+    (io/make-parents path)
+    (spit path
+          (write-scad content))))
+
+; The scad-clj library was last updated in 2018, so it doesn't support the :fill method. This changes the scad writer to support it.
+; Reference: https://github.com/farrellm/scad-clj/blob/master/src/scad_clj/scad.clj
 (defmethod write-expr :fill [depth [form & block]]
   (concat
    (list (indent depth) "fill () {\n")
@@ -18,15 +49,6 @@
 
 (defn fill [& block]
   `(:fill ~block))
-
-;(defn load-var [rowsy colsy thumby]
-;  (let [arg1 (+ rowsy colsy)]
-;  (println "arg1: " arg1)
-;  )
-;)
-;(param 1 2 3)
-
-;(println "Whaaat: " arg1)
 
 ;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;
@@ -789,18 +811,15 @@
    single-plate-blank
    (single-plate mirror-internals)))
 
-(spit "things/cap_test.scad"
-      (write-scad
-       (union
-        single-plate)))
+; (write-scad-file "cap_test"
+;                  (union
+;                   single-plate))
 
-; (spit "things/socket_test.scad"
-;      (write-scad
+;      (write-scad-file "socket_test")
 ;        (union
 ;          hot-socket
 ;        )
 ;      )
-; )
 
 ;;;;;;;;;;;;;;;;
 ;; SA Keycaps ;;
@@ -2274,13 +2293,18 @@
   (def screw-offset-tm [7 -6.05 0])
   (def screw-offset-tl [9.8 7.8 0]))
 
+(def screw-insert-ic-height "the thickness of the plate that holds the entier ic holder that go between the raised screw holes and the bottomplate" 3)
+
 (defn screw-insert-all-shapes [bottom-radius top-radius height]
-  (union (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl)
-         (screw-insert 0 lastrow   bottom-radius top-radius height screw-offset-bl)
-         (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
-         (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
-         (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm)
-         (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm)))
+  (union
+   (translate [0 0 screw-insert-ic-height]
+              (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl))
+   (screw-insert 0 lastrow   bottom-radius top-radius height screw-offset-bl)
+   (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
+   (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
+   (translate [0 0 screw-insert-ic-height]
+              (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm))
+   (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm)))
 
 ; Hole Depth Y: 4.4
 (def screw-insert-height 5)
@@ -2339,18 +2363,55 @@
 ;;; IC fixture ;;;
 ;;;;;;;;;;;;;;;;;;
 
-(def ic-depth "how long the ic is" 37)
-(def ic-width "how wide the ic is" 18.7)
-(def ic-height "how high the walls around the ic is" 3)
+; (def usb-hole
+;   (union
+;    (translate [0 0 10]
+;               (minkowski
+;                (binding [*fn* 100] (cylinder 0.95 10))
+;                (cube 7.34 1.56 10)))))
+
+; (translate [0 1.91 10.7]
+    ;   (cube 12.3 4.18 18.6)
+    ; )
+    ; (translate [-5.62 -0.58 10.7]
+    ;   (cube 0.6 0.8 18.6)
+    ; )
+    ; (translate [5.62 -0.58 10.7]
+    ;   (cube 0.6 0.8 18.6)
+    ; )
+    ; (translate [0 4.5 20]
+    ;   (cube 2 5 5)
+    ; )
+
+(def trrs-hole
+  (union
+   (translate [0 0 10]
+              (binding [*fn* 100] (cylinder 3.2 20)))))
+
+    ; (translate [0 0.85 11.2]
+    ;   (cube 10.5 8 17.6)
+    ; )
+    ; (translate [0 4.5 20]
+    ;   (cube 2 5 5)
+    ; )
+
+(def ic-bottom-extra-thickness "the thickness of the bottom plate is to small at the solder chanels so i need to add some extra thickness" 1)
+
+; (def ic-depth "how long the ic is" 37) ; v.3
+(def ic-depth "how long the ic is" 36.1) ; v.4
+; (def ic-width "how wide the ic is" 18.7) ; v.2
+(def ic-width "how wide the ic is" 18.65) ; v.3
+(def ic-height "how high the walls around the ic is" (+ 3 ic-bottom-extra-thickness))
 
 (def ic-solder-width 3.5)
-(def ic-solder-height "depth of chanel for solder joints" 1.5)
+; (def ic-solder-height "depth of chanel for solder joints" 1.5) ; v.2
+(def ic-solder-height "depth of chanel for solder joints" 1.65) ; v.3
 (def ic-solder-cube
   (cube ic-solder-width ic-depth ic-solder-height))
 
 (def ic-border "thickness of border around ic" 2)
 
-(def ic-hole
+(def ic-hole "the part that is cut out to create the space where the ic is"
   (translate [0 (/ ic-depth -2) (/ ic-border 2)]
              (union
               (cube ic-width ic-depth ic-height)
@@ -2369,37 +2430,53 @@
 ;   (translate [0 (/ trrs-depth -2) (/ ic-border 2)]
 ;              (cube trrs-width trrs-depth trrs-height)))
 
-(defn screw-insert-ic-fixture [bottom-radius top-radius height]
-  (union
-   (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl)
-         ; (screw-insert 0 lastrow   bottom-radius top-radius (/ height 2) screw-offset-bl)
-         ; (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
-         ; (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
-   (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm)))
-         ; (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm)
+; ##########################
+; Screw holes for the IC holder
+; ##########################
 
-(def screw-insert-ic-height 3)
+(defn screw-insert-ic-fixture "functionn that places cylinders at the diffrent screw hole locations modified to only apear wher the ic needs them"
+  [bottom-radius top-radius height]
+  (translate [0 0 screw-insert-ic-height]
+             (union
+              (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl)
+             ; (screw-insert 0 lastrow   bottom-radius top-radius (/ height 2) screw-offset-bl)
+             ; (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
+             ; (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
+              (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm))))
+                             ; (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm)
 
 (def screw-insert-outers-ic (screw-insert-ic-fixture (+ screw-insert-bottom-radius 2.2) (+ screw-insert-top-radius 2.2) screw-insert-ic-height))
 (def screw-insert-inner-ic (screw-insert-ic-fixture screw-insert-bottom-radius screw-insert-top-radius screw-insert-ic-height))
 
-; Offsets for the controller/trrs holder cutout
-; (def holder-offset
-;   (case nrows
-;     4 -3.5
-;     5 0
-;     6 (if inner-column
-;           3.2
-;           2.2)))
+; #################
+; #################
+
+(def screw-outer-trrs-side
+  ; (screw-insert 0 0 (+ screw-insert-bottom-radius 2.2) (+ screw-insert-top-radius 2.2) screw-insert-ic-height screw-offset-tl)
+  (translate [0 0 screw-insert-ic-height]
+             (screw-insert (+ 2 innercol-offset) 0 (+ screw-insert-bottom-radius 2.2) (+ screw-insert-top-radius 2.2) screw-insert-ic-height screw-offset-tm)))
+
+; #################
+; #################
+
+; (def ic-backwall-nobb-space "The distance above the bottom of the holder to the back wall nobb that is used to hold the ic holder in place" 2)
+(def ic-backwall-nobb-width "The width of the back wall nobb that is used to hold the ic holder in place" 10)
+(def ic-backwall-nobb-depth (+ 1.5 ic-border))
+(def ic-backwall-nobb-height 1)
 
 (def ic-fixture-holder
   (union
    (translate [0 0 (/ (+ ic-height ic-border) 2)]
-              (difference
-               (translate [0 (/ (+ ic-depth ic-border) -2) 0]
-                          (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border)))
-
-               ic-hole))))
+              (union
+               (difference
+                (translate [0 (/ (+ ic-depth ic-border) -2) 0]
+                           (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border)))
+                (translate [0 0 ic-bottom-extra-thickness]
+                           ic-hole))
+                ; A little petrusion at the back of the ic holder so it can not lift up
+               (translate [0 (- (/ ic-backwall-nobb-depth 2) ic-depth ic-border) (+ (/ ic-backwall-nobb-height -2) ic-bottom-extra-thickness ic-border)]
+               ; (translate [0 (- (/ ic-backwall-nobb-depth 2) ic-depth ic-border) (+ ic-backwall-nobb-space (/ 2 (+ ic-border ic-bottom-extra-thickness ic-height)))]
+                          (cube ic-backwall-nobb-width ic-backwall-nobb-depth ic-backwall-nobb-height))))))
 
    ; (translate [(+ (/ (+ ic-width trrs-width) 2) (* 1 ic-border)) 0 (/ (+ trrs-height ic-border) 2)]
    ;            (difference
@@ -2408,48 +2485,236 @@
    ;
    ;             trrs-hole))))
 
-(def ic-fixture-holes
+(def ic-fixture-holes "the holes that will be cut in the walls"
   (union
    (translate [0 0 (/ (+ ic-height ic-border) 2)]
               ic-hole)))
    ; (translate [(+ (/ (+ ic-width trrs-width) 2) (* 1 ic-border)) 0 (/ (+ trrs-height ic-border) 2)]
    ;            trrs-hole)))
 
+; #################
+; Translate the ic fixture holder and the holes to the right position
+; #################
+
+; ic holder connections are 3 mm high and i need 1 mm extra so the solder hole is not to thin
+(def ic-uppward-offset "the offset that is used to move the ic holder up so that it is at the right height"
+  3)
+
 ; Cutout for controller/trrs jack holder
 ; (def usb-holder-ref (key-position 0 0 (map - (wall-locate2  0  -1) [0 (/ mount-height 2) 0])))
-(def ic-holder-position (map + [(+ 13.8 holder-offset) 20.5 0] [(first usb-holder-ref) (second usb-holder-ref) 0]))
+(def ic-holder-position (map + [(+ 13.8 holder-offset) 20.5 ic-uppward-offset] [(first usb-holder-ref) (second usb-holder-ref) 0]))
 ; (def ic-holder-translate  (translate (map + ic-holder-position [-1.5 (* -1 wall-thickness) 0]) ic-fixture-holder))
 (def ic-holder-translate  (translate (map + ic-holder-position [0 0 0]) ic-fixture-holder))
 
 ; Cutout for controller/trrs jack holder
 (def ic-holes-holder-translate  (translate (map + ic-holder-position [0 0 0]) ic-fixture-holes))
 
-(defn screw-insert-cube [column row bottom-radius height offset length]
-  (let [shift-right   (= column lastcol)
-        shift-left    (= column 0)
-        shift-up      (and (not (or shift-right shift-left)) (= row 0))
-        shift-down    (and (not (or shift-right shift-left)) (>= row lastrow))
-        position      (if shift-up     (key-position column row (map + (wall-locate2  0  1) [0 (/ mount-height 2) 0]))
-                          (if shift-down  (key-position column row (map - (wall-locate2  0 -2.5) [0 (/ mount-height 2) 0]))
-                              (if shift-left (map + (left-key-position row 0) (wall-locate3 -1 0))
-                                  (key-position column row (map + (wall-locate2  1  0) [(/ mount-width 2) 0 0])))))]
-    (->> (cube (Math/abs length) (* bottom-radius 2) height)
-         (translate (map + offset [(+ (first position) (/ length 2)) (second position) (/ height 2)])))))
+; #################
+; #################
 
-(defn screw-insert-cubes [bottom-radius height]
+; need a ic fixture without the hole for the ic so that i can cut away  to only the trrs side panel of the ic fixture remains
+(def ic-fixture-holder-no-hole "the ic fixture without the hole for the ic"
   (union
-   (screw-insert-cube 0 0         bottom-radius height screw-offset-tl 10)
-   (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm -20)))
+   (translate [0 0 (/ (+ ic-height ic-border) 2)]
+              (translate [0 (/ (+ ic-depth ic-border) -2) 0]
+                         (cube (+ ic-width (* ic-border 2)) (+ ic-depth ic-border) (+ ic-height ic-border))))))
 
-(def ic-holder-connectors
+(def ic-holder-no-hole-translate "the ic holder without the hole for the ic translated to the right position"
+  (translate (map + ic-holder-position [0 0 0]) ic-fixture-holder-no-hole))
+
+(def hull-ic-screw-connection "the hull that connects the ic holder to the screw holes"
+  (union
+   ; This is just debug
+   ; (color GRY
+   ;        (translate [0 0 10]
+   ;                   (difference
+   ;                    ic-holder-no-hole-translate
+   ;                ; move a holder without the hole for the ic the thickness of the connections to the screw holes upp
+   ;                    (translate [0 0 screw-insert-ic-height]
+   ;                               ic-holder-no-hole-translate)
+   ;               ; ; same thing but a litte bit to the ic-side so that it doen't cut into the ic holder
+   ;                    (translate [-1 0 0]
+   ;                               ic-holder-no-hole-translate))))
+   ; (color BLU
+   ;        screw-outer-trrs-side)
+   (color PIN
+          (hull screw-outer-trrs-side
+                (difference
+                 ic-holder-no-hole-translate
+                   ; move a holder without the hole for the ic the thickness of the connections to the screw holes upp
+                 (translate [0 0 screw-insert-ic-height]
+                            ic-holder-no-hole-translate)
+                  ; same thing but a litte bit to the ic-side so that it doen't cut into the ic holder
+                 (translate [-1 0 0]
+                            ic-holder-no-hole-translate))))))
+
+; #################
+; #################
+
+(defn screw-insert-cube "creates a cube for the screw insert at the given column and row. bottom-radius is "
+  [column row bottom-radius height offset length]
+  (translate [0 0 3]
+             (let [shift-right   (= column lastcol)
+                   shift-left    (= column 0)
+                   shift-up      (and (not (or shift-right shift-left)) (= row 0))
+                   shift-down    (and (not (or shift-right shift-left)) (>= row lastrow))
+                   position      (if shift-up     (key-position column row (map + (wall-locate2  0  1) [0 (/ mount-height 2) 0]))
+                                     (if shift-down  (key-position column row (map - (wall-locate2  0 -2.5) [0 (/ mount-height 2) 0]))
+                                         (if shift-left (map + (left-key-position row 0) (wall-locate3 -1 0))
+                                             (key-position column row (map + (wall-locate2  1  0) [(/ mount-width 2) 0 0])))))]
+               (->> (cube (Math/abs length) (* bottom-radius 2) height :center true)
+                    (translate (map + offset [(+ (first position) (/ length 2)) (second position) (/ height 2)]))))))
+
+(defmacro dbg "Debugging macro to print the value of an expression."
+  [expr]
+  `(let [val# ~expr]
+     (println "dbg:" '~expr "=>" val#)
+     val#))
+
+; ; (defn rotate-around-point
+; ;   "Rotate children by angle (in radians) about axis vector v through point pt."
+; ;   [angle v pt & children]
+; ;   (let [[px py pz] pt]
+; ;     (apply translate [px py pz]
+; ;            (rotate angle v
+; ;                    (translate [(- px) (- py) (- pz)]
+; ;                               (dbg (apply union children)))))))
+;
+; ; (defn rotate-around-point
+; ;   "Rotate one or more scad-clj shapes by `angle` (radians) around the axis `v`
+; ;    through the point `pt`. `children` are the shape blocks to transform."
+; ;   [angle v pt & children]
+; ;   (let [[px py pz] pt]
+; ;     (apply translate [px py pz]
+; ;            (apply rotate angle v
+; ;                   (apply translate [(- px) (- py) (- pz)]
+; ;                          children)))))
+; ;
+; ; (defn rotate-around
+; ;   "Rotate `obj` by Euler angles `angles` (a 3‑vector [rx ry rz])
+; ;    around the pivot point `pivot` (any seq of 3 numbers)."
+; ;   [obj pivot angles]
+; ;   ;; make sure pivot is a real vector of 3 numbers
+; ;   (let [pivot-v    (vec pivot)
+; ;         ;; [(- px) (- py) (- pz)]
+; ;         neg-pivot  (mapv - pivot-v)]
+; ;     (-> obj
+; ;         (translate neg-pivot)   ; move pivot to origin
+; ;         (rotate    angles)      ; rotate about origin
+; ;         (translate pivot-v))))  ; move back
+;
+; ; Debug flag - set to true to show rotation points
+; (def ^:dynamic *show-rotation-points* true)
+;
+; (defn rotation-point-marker
+;   "Creates a small sphere to mark a rotation point for debugging.
+;    Returns nil if *show-rotation-points* is false."
+;   [point & {:keys [size color] :or {size 0.5 color [1 0 0]}}]
+;   (when *show-rotation-points*
+;     (->> (sphere size)
+;          (color color)
+;          (translate point))))
+;
+; ; (defn rotation-axis-marker
+; ;   "Creates a cylinder to show the rotation axis for debugging.
+; ;    Returns nil if *show-rotation-points* is false."
+; ;   [point axis & {:keys [length radius color] :or {length 10 radius 0.2 color [0 1 0]}}]
+; ;   (when *show-rotation-points*
+; ;     (let [[ax ay az] axis
+; ;           ; Calculate rotation needed to align cylinder with axis
+; ;           axis-length (Math/sqrt (+ (* ax ax) (* ay ay) (* az az)))
+; ;           norm-axis (mapv #(/ % axis-length) axis)
+; ;           ; Default cylinder points along Z axis, so we need to rotate it
+; ;           ; to align with the desired axis
+; ;           angle (Math/acos (last norm-axis))  ; angle between axis and Z
+; ;           rot-axis (if (< angle 0.001)
+; ;                      [1 0 0]  ; arbitrary axis if already aligned
+; ;                      [(- (second norm-axis)) (first norm-axis) 0])]
+; ;       (->> (cylinder radius length)
+; ;            (color color)
+; ;            (translate [0 0 (/ length 2)])  ; center it
+; ;            (rotate (* angle (/ 180 Math/PI)) rot-axis)
+; ;            (translate point)))))
+;
+; (defn rotate-around-point
+;   "Rotate an object around a specific point.
+;    Parameters:
+;    - obj: the scad-clj object to rotate
+;    - point: [x y z] coordinates of the rotation point
+;    - angle: rotation angle in degrees (or radians if using rad)
+;    - axis: [x y z] axis vector to rotate around (e.g., [0 0 1] for Z-axis)
+;    
+;    For Euler angles, use rotate-around-point-euler instead."
+;   [obj relative-point angle axis]
+;   (let [[rx ry rz] relative-point
+;         rotated-obj (->> obj
+;                          ; Step 1: Translate by the negative of the relative point
+;                          ; This moves the rotation point to the origin
+;                          (translate [(- rx) (- ry) (- rz)])
+;                          ; Step 2: Rotate around origin
+;                          (rotate angle axis)
+;                          ; Step 3: Translate back by the relative point
+;                          (translate [rx ry rz]))]
+;     (if *show-rotation-points*
+;       (union
+;        rotated-obj
+;        (rotation-point-marker relative-point))
+;        ; (rotation-axis-marker relative-point axis))
+;       rotated-obj)))
+
+(def trrs-side-screw-connector-offset "the amount to shift the cube that connects the trrs side screw to the ic holder" -30)
+
+(defn screw-insert-cubes "the cubes that connect the screw holes to the ic holder. now only the ic-side is used"
+  [bottom-radius height]
+  (union
+   (color RED (screw-insert-cube 0 0         bottom-radius height screw-offset-tl 10))))
+   ; (color GRE
+   ;        ; (translate [(/ trrs-side-screw-connector-offset 2) 0 0]
+   ;        (rotate (deg2rad 10) [0 0 1]
+   ;                (translate [(/ trrs-side-screw-connector-offset -2) 0 0]
+   ;                           (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm trrs-side-screw-connector-offset))))))
+   ; (polygon )))
+
+   ; ; Rotated cube using the rotate-around-point function
+   ; (rotate-around-point
+   ;  (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm trrs-side-screw-connector-offset)
+   ;  [bottom-radius 0 (/ trrs-side-screw-connector-offset 2)]
+   ;  28  ; angle in degrees
+   ;  [0 0 1])))  ; rotating around Z-axis
+
+; (rotate-around
+   ;  (cube 5 5 height)
+   ;  [bottom-radius
+   ;   0
+   ;   (/ trrs-side-screw-connector-offset 2)]
+   ;  [0 0 45])))
+   ; (rotate-around
+   ;  (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm trrs-side-screw-connector-offset)
+   ;  [bottom-radius 0 (/ trrs-side-screw-connector-offset 2)]
+   ;  [0 0 45])))
+   ; the connector comming from the trrs side is rotated so it creates a triangle against the ic holder when its cut away by the walls
+   ; (dbg (rotate-around-point (deg2rad 45) [0 0 1] [bottom-radius 0 (/ trrs-side-screw-connector-offset 2)]
+   ;                           (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm trrs-side-screw-connector-offset)
+   ; (rotate-around-x (deg2rad 45)
+   ;                  (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm trrs-side-screw-connector-offset))))
+   ; (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm trrs-side-screw-connector-offset)))
+   ; (rotate-around-point
+   ;  (deg->rad 45)
+   ;  [0 0 1]
+   ;  [bottom-radius 0 (/ trrs-side-screw-connector-offset 2)]
+   ;  (screw-insert-cube (+ 2 innercol-offset) 0         bottom-radius height screw-offset-tm trrs-side-screw-connector-offset))))
+
+(def ic-holder-connectors "the connectors that connect the ic holder to the screw holes diffreced to only have the remaining shape"
   (difference
-   (screw-insert-cubes (+ screw-insert-bottom-radius 2.2) screw-insert-ic-height)
+   (union
+    (screw-insert-cubes (+ screw-insert-bottom-radius 2.2) screw-insert-ic-height)
+    hull-ic-screw-connection)
    case-walls
    (translate [0 1 0]
               ic-holes-holder-translate)
    screw-insert-inner-ic))
 
-(def ic-fixture
+(def ic-fixture "The complete ic holder with the connectors and ic holder"
   (union
    ic-holder-translate
     ; (translate [0 0 3]
@@ -2458,7 +2723,7 @@
     screw-insert-inner-ic
     case-walls)
 
-    ; )
+        ; )
    ic-holder-connectors))
 
 ; (spit (str folder"right-ic.scad")
@@ -2468,19 +2733,36 @@
 ;   )
 ; )
 
-(def usb-hole-width 12)
-(def usb-hole-height 5.5)
+(def usb-hole-width "the width of the usb hole in the wall" 12)
+; (def usb-hole-height "the height of the usb hole in the wall" 5.5) ; v.2
+(def usb-hole-height "the height of the usb hole in the wall" 7) ; v.3
 
-(def ic-thickness 1.5)
+(def ic-thickness "The thickness of the ic curcuit board. THe USB connector is on top of the ic board so the hole for the usb needs to acount for this"
+  1.5)
 
-(def usb-hole
-  ; (union
+(def usb-connector-height "The height of the real usb connector. used to calculate where the usb hole is placed in the wall"
+  3.2)
+(def usb-connector-width 8.9)
+
+(def usb-hole "The hole in the wall for the usb connector"
+  (union
+
     ; (translate [0 0 10]
-  (translate [0 0 (+ ic-border (+ ic-thickness (+ 0.95)))] ;(/ usb-hole-height 2))))]
-             (rotate [(deg2rad 90) 0 0]
-                     (minkowski
-                      (binding [*fn* 100] (cylinder 0.95 10))
-                      (cube usb-hole-width usb-hole-height 10)))))
+   (translate [0 0 (+  (/ usb-connector-height 2) ic-thickness)] ;(/ usb-hole-height 2))))]
+              (rotate [(deg2rad 90) 0 0]
+                      (minkowski
+                       (binding [*fn* 100] (cylinder 0.95 10))
+                       (cube usb-hole-width usb-hole-height 10))))))
+
+(def usb-connnector-debug "rendering the usb connector for debugging"
+  (color GRE
+         (translate [0 0 (+  (/ usb-connector-height 2) ic-thickness)] ;(/ usb-hole-height 2))))]
+                    (rotate [(deg2rad 90) 0 0
+                            ; (minkowski
+                            ;  (binding [*fn* 100] (cylinder 0.95 10))
+                             (cube usb-connector-width usb-connector-height 2)]))))
+
+(def usb-hole-translate-debug (translate (map + ic-holder-position [0 0 (+ ic-bottom-extra-thickness ic-border)]) usb-connnector-debug))
 
 ; )
     ; (translate [0 1.91 10.7]
@@ -2497,13 +2779,19 @@
     ; )
   ; )
 
-(def trrs-radius 4)
+(def trrs-radius 4.05)
+(def trrs-counter-sink-radius 5.5)
 
 (def trrs-wall-hole
   (union
    ; (translate [(+ (/ (+ ic-width trrs-width) 2) (* 1 ic-border)) 0 (+ ic-border (/ trrs-height 2))]
-   (rotate [(deg2rad 90) 0 0]
-           (binding [*fn* 100] (cylinder trrs-radius 20)))))
+   (translate [28 0 (+ 7 (/ trrs-radius 2))]
+              (rotate [(deg2rad 90) 0 0]
+                      (union
+                       (binding [*fn* 100] (cylinder trrs-radius 20))
+                       (translate [0 0 4]
+                                  (color RED
+                                         (binding [*fn* 100] (cylinder trrs-counter-sink-radius 20)))))))))
 
 ; (translate [0 0.85 11.2]
     ;   (cube 10.5 8 17.6)
@@ -2513,7 +2801,7 @@
     ; )
 
 (def usb-hole-position (map + [(+ 13.8 holder-offset) 20.5 0] [(first usb-holder-ref) (second usb-holder-ref) 0]))
-(def usb-hole-translate  (translate (map + ic-holder-position [0 0 0]) (union trrs-wall-hole usb-hole)))
+(def usb-hole-translate       (translate (map + ic-holder-position [0 0 (+ ic-bottom-extra-thickness ic-border)]) (union trrs-wall-hole usb-hole)))
 
 (def ic-wall-holes
   (union
@@ -2606,11 +2894,7 @@
               (cube 5.3 4 7.5))
    insert-shape))
 
-;(spit "things/test1.scad"
-;      (write-scad
-;        joiners
-;      )
-;)
+; (write-scad-file "test1" joiners)
 
 ;;;;;;;;;;;;;;;;;
 ;;; Hand rest ;;;
@@ -2694,21 +2978,25 @@
 ;;; Bottom plate generation ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def model-right-plate-before
-  (project
-   (extrude-linear {:height 3}
-                   (difference
-                    (fill
-                     (cut
-                      case-walls))
-
-                    (cut
-                     screw-insert-screw-holes)))))
+; (def model-right-plate-before
+;   (project
+;    (extrude-linear {:height 3}
+;                    (difference
+;                     (fill
+;                      (cut
+;                       case-walls))
+;
+;                     (cut
+;                      screw-insert-screw-holes)))))
+;
+; (write-scad-file "right-plate-test"
+;                  model-right-plate-before)
 
 (def model-right-plate
   (project
    (extrude-linear {:height 3}
-                   (scale [0.996 0.996 0]
+                   ; (scale [0.996 0.996 0]) ; v.2
+                   (scale [0.99 0.99 0] ; v.3
                           (difference
                            (fill
                             (cut
@@ -2723,8 +3011,6 @@
 (defn plate-pad [offset]
   (translate offset
              (binding [*fn* 100] (cylinder pad-r pad-z))))
-
-(def text-z 0.75)
 
 (when (= thumb-style "default")
   (def plate-pad-br [-85.2 -71.6 (/ pad-z 2)])
@@ -2741,30 +3027,22 @@
 (when (and (= nrows 4) (= ncols 5))
   (def plate-pad-bl [22.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [21 18.4 (/ pad-z 2)])
-  (def plate-pad-tr [-59.3 30.5 (/ pad-z 2)])
-  (def text-r [-30 -17 text-z])
-  (def text-l [-70 -17 text-z]))
+  (def plate-pad-tr [-59.3 30.5 (/ pad-z 2)]))
 
 (when (and (= nrows 4) (= ncols 6))
   (def plate-pad-bl [43.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [50.8 11.9 (/ pad-z 2)])
-  (def plate-pad-tr [-59.1 30.7 (/ pad-z 2)])
-  (def text-r [-40 -17 text-z])
-  (def text-l [-60 -17 text-z]))
+  (def plate-pad-tr [-59.1 30.7 (/ pad-z 2)]))
 
 (when (and (= nrows 5) (= ncols 6))
   (def plate-pad-bl [43.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [51.2 30.8 (/ pad-z 2)])
-  (def plate-pad-tr [-54 50.3 (/ pad-z 2)])
-  (def text-r [-40 -8 text-z])
-  (def text-l [-60 -8 text-z]))
+  (def plate-pad-tr [-54 50.3 (/ pad-z 2)]))
 
 (when (and (= nrows 6) (= ncols 6))
   (def plate-pad-bl [43.7 -42.2 (/ pad-z 2)])
   (def plate-pad-tl [44 55 (/ pad-z 2)])
-  (def plate-pad-tr [-46 67 (/ pad-z 2)])
-  (def text-r [-43 5 text-z])
-  (def text-l [-58 5 text-z]))
+  (def plate-pad-tr [-46 67 (/ pad-z 2)]))
 
 (def plate-pads-together
   (union
@@ -2773,12 +3051,6 @@
    (plate-pad plate-pad-bl)
    (plate-pad plate-pad-tr)
    (plate-pad plate-pad-tl)))
-
-(defn plate-text [offset]
-  (rotate [0 0 pi]
-          (translate offset
-                     (extrude-linear {:height 1.5}
-                                     (text "K33B.com" :size 15 :font "Oxanium:style=ExtraBold")))))
 
 (defn plate-printed [pos]
   (mirror [pos 0 0]
@@ -2790,21 +3062,27 @@
                    (translate [0 0 0]
                               (screw-insert-all-shapes 3.25 1.75 2))
 
-                   (screw-insert-all-shapes 3 3 1)
-                   plate-pads-together
-                   (mirror [0 1 0]
-                           (mirror [pos 0 0]
-                                   (if (= pos 0) (plate-text text-r) (plate-text text-l))))))))
+                   (screw-insert-all-shapes 3 3 1)))))
+                   ; plate-pads-together))))
 
 ;;;;;;;;;;;;;;;;
-;;; Hotfixes ;;;
+;;; Reset Button hole ;;;
 ;;;;;;;;;;;;;;;;
+
+(def reset-button-radius "The radius of the reset button hole" 5.05)
+(def reset-button-max-radius "The radius of the widest part of the reset button" 7.5)
+
+(def reset-button-hole
+  (union
+   (translate [-75 0 (+ reset-button-max-radius 3 1)]
+              (rotate [0 (deg2rad 90) 0]
+                      (binding [*fn* 100] (cylinder reset-button-radius 10))))))
 
 ;;;;;;;;;;;;;;;;;
 ;;; Exporting ;;;
 ;;;;;;;;;;;;;;;;;
 
-(def scre)
+; (def scre)
 
 (def model-right
   (difference
@@ -2817,24 +3095,21 @@
     inner-connectors
     thumb-type
     thumb-connector-type
-    (difference
-     (union
-      case-walls
-      (translate [0 0 3]
-                 screw-insert-outers))
+    case-walls
+    (translate [0 0 3]
+               screw-insert-outers))
 
           ; wrist-attach-case-socket
-
-     ic-wall-holes
-        ; usb-holder-space
-        ; usb-holder-notch
-     (translate [0 0 3]
-                screw-insert-holes)))
-
-        ; wrist-attach-case
+   ; usb-holder-space
+   ; usb-holder-notch
+   ic-wall-holes
+   reset-button-hole
+   (translate [0 0 3]
+              screw-insert-holes)
 
    (translate [0 0 -20]
               (cube 350 350 40))))
+            ; wrist-attach-case
 
 (def model-left
   (mirror [1 0 0]
@@ -2848,102 +3123,54 @@
             inner-connectors
             thumb-type-left
             thumb-connector-type
-            (difference
-             (union
-              case-walls
-              (translate [0 0 3]
-                         screw-insert-outers))
+            case-walls
+            (translate [0 0 3]
+                       screw-insert-outers))
 
-           ; wrist-attach-case
-
-         ; usb-holder-space
-         ; usb-holder-notch
-             ic-wall-holes
-             (translate [0 0 3]
-                        screw-insert-holes)))
-
-         ; wrist-attach-case
+          ; wrist-attach-case-socket
+           ; usb-holder-space
+           ; usb-holder-notch
+           ic-wall-holes
+           reset-button-hole
+           (translate [0 0 3]
+                      screw-insert-holes)
 
            (translate [0 0 -20]
                       (cube 350 350 40)))))
+                    ; wrist-attach-case
 
-(if (= thumb-style "default") [(def folder (str "things/6key/" nrows "x" ncols "/6key-" nrows "x" ncols "-"))
-                               (def img (str "things/img/6key-" nrows "x" ncols "-"))])
-
-(if (= thumb-style "mini") [(def folder (str "things/5key/" nrows "x" ncols "/5key-" nrows "x" ncols "-"))
-                            (def img (str "things/img/5key-" nrows "x" ncols "-"))])
-
-(if (= thumb-style "tightly") [(def folder (str "things/3key/" nrows "x" ncols "/3key-" nrows "x" ncols "-"))
-                               (def img (str "things/img/3key-" nrows "x" ncols "-"))])
-
-; (spit (str img"rest.scad")
-;   (write-scad
-;     (union
-;       hand-rest-final
-;       model-right
-;     )
-;   )
-; )
+(write-scad-file "right-ic" ic-fixture)
 ;
-; (spit (str img"right.scad")
-;   (write-scad
-;     (union
-;       model-right
-;     )
-;   )
-; )
+(write-scad-file "left-ic"
+                 (mirror [1 0 0]
+                         ic-fixture))
 
-(spit (str folder "right-ic.scad")
-      (write-scad
-       ic-fixture))
+; (write-scad-file "right-rest" hand-rest-final)
+; (write-scad-file "left-rest"
+;                  (mirror [1 0 0]
+;                          hand-rest-final))
 
-(spit (str folder "left-ic.scad")
-      (write-scad
-       (mirror [1 0 0]
-               ic-fixture)))
+(write-scad-file "right" model-right)
 
-;
-; (spit (str folder"right-rest.scad")
-;   (write-scad
-;     (union
-;       hand-rest-final
-;     )
-;   )
-; )
-;
-; (spit (str folder"left-rest.scad")
-;   (write-scad
-;     (mirror [1 0 0]
-;       hand-rest-final
-;     )
-;   )
-; )
-;
-(spit (str folder "right.scad")
-      (write-scad
-       model-right
-       ic-fixture))
-    ; ic-wall-holes
+(write-scad-file "left" model-left)
 
-(spit (str folder "left.scad")
-      (write-scad
-       model-left
-       (mirror [1 0 0]
-               ic-fixture)))
+(write-scad-file "right-debug"
+                 (union
+                  model-right
+                  ic-fixture
+                  usb-hole-translate-debug))
 
-(spit (str folder "right-plate.scad")
-      (write-scad
-       (difference
-        (plate-printed 0))))
-      ;(plate-text text-x text-y)
+; (write-scad-file "left-debug"
+;                  (union
+;                   (mirror [1 0 0]
+;                           model-right
+;                           ic-fixture
+;                           usb-hole-translate-debug)))
 
-;
-(spit (str folder "left-plate.scad")
-      (write-scad
-       (difference
-      ; (mirror [1 0 0]
-        (plate-printed 1))))
-      ; )
-      ;(plate-text text-x text-y)
+(write-scad-file "right-plate"
+                 (plate-printed 0))
+
+(write-scad-file "left-plate"
+                 (plate-printed 1))
 
 (defn -main [dum] 1)  ; dummy to make it easier to batch
