@@ -82,6 +82,12 @@
 (def hook2-placement-x 25)
 (def hook2-placement-y (+ -50.65 1))
 
+(defmacro dbg "Debugging macro to print the value of an expression."
+  [expr]
+  `(let [val# ~expr]
+     (println "dbg:" '~expr "=>" val#)
+     val#))
+
 (def WHI [255/255 255/255 255/255 1])
 (def RED [255/255 0/255 0/255 1])
 (def ORA [220/255 128/255 0/255 1])
@@ -2228,6 +2234,43 @@
     (->> (screw-insert-shape bottom-radius top-radius height)
          (translate (map + offset [(first position) (second position) (/ height 2)])))))
 
+(defn rotate-around-point [dimension rotation shape]
+  (let [[px py pz] dimension
+        [rx ry rz] rotation]
+    (->> shape
+         (translate [(- px) (- py) (- pz)])
+         (rotate [rx ry rz])
+         (translate [px py pz]))))
+
+; (def debug-rotate
+;   (union
+;    (color RED
+;           (rotate-around-point [2.5 0 0] [0 0 (deg2rad 45)] (cube 5 5 5 :center true)))
+;    (color GRE
+;           (rotate [0 0 (deg2rad 45)]
+;                   (translate [2.5 0 0]
+;                              (cube 5 5 5 :center true))))))
+
+(defn screw-insert-cube "creates a cube for the screw insert at the given column and row. rotation is how many degrees to rotate the cube around the screw hole"
+  [column row width height offset length rotation]
+  ; (translate [(/ length 2) 0 3])
+  (translate [0 0 3]
+             (let [shift-right   (= column lastcol)
+                   shift-left    (= column 0)
+                   shift-up      (and (not (or shift-right shift-left)) (= row 0))
+                   shift-down    (and (not (or shift-right shift-left)) (>= row lastrow))
+                   tmp           (dbg rotation)
+                   position      (if shift-up     (key-position column row (map + (wall-locate2  0  1) [0 (/ mount-height 2) 0]))
+                                     (if shift-down  (key-position column row (map - (wall-locate2  0 -2.5) [0 (/ mount-height 2) 0]))
+                                         (if shift-left (map + (left-key-position row 0) (wall-locate3 -1 0))
+                                             (key-position column row (map + (wall-locate2  1  0) [(/ mount-width 2) 0 0])))))]
+               (->> (cube length (* width 2) height :center true)
+                    ; (color RED)
+                    ; (rotate [0 0 rotation])
+                    (rotate-around-point [(/ length -2) 0 0] [0 0 (deg2rad rotation)])
+                    (dbg)
+                    (translate (map + offset [(+ (first position) (/ length 2)) (second position) (/ height 2)]))))))
+
 ; Offsets for the screw inserts dependent on extra-row & pinky-15u
 (when (and pinky-15u extra-row)
   (def screw-offset-tr [1 7 0])
@@ -2239,8 +2282,10 @@
   (def screw-offset-tr [-3.5 6.5 0])
   (def screw-offset-br [-3.5 -6.5 0]))
 (when (and (false? pinky-15u) (false? extra-row))
-  (def screw-offset-tr [-7 6.5 0])
-  (def screw-offset-br [-4 17 0]))
+  ; This
+  (def screw-offset-tr [-7 6.5 0]) ; i think this is overwritten
+  ; (def screw-offset-br [-4 17 0]) ; v.2
+  (def screw-offset-br [-5 17.5 0])) ; v.3
 
 ; Offsets for the screw inserts dependent on thumb-style & inner-column
 (when (and (= thumb-style "cf") inner-column)
@@ -2264,9 +2309,12 @@
   (def screw-offset-tm [9.5 -4.5 0])
   (def screw-offset-bm [8 -1 0]))
 (when (and (= thumb-style "default") (false? inner-column))
-  (def screw-offset-bl [-11.1 -7.7 0])
+  ; This
+  ; (def screw-offset-bl [-11.1 -7.7 0]) ; v.2
+  (def screw-offset-bl [-10.3 -7.4 0]) ; v.3
     ; (def screw-offset-tm [9.5 -4.5 0])
-  (def screw-offset-bm [1 0 0]))
+  ; (def screw-offset-bm [1 0 0]) ; v.2
+  (def screw-offset-bm [0.5 0.5 0])) ; v.3
 (when (and (= thumb-style "tightly") inner-column)
   (def screw-offset-bl [5 -2 0])
   (def screw-offset-tm [9.5 20 0])
@@ -2285,9 +2333,13 @@
   (def screw-offset-tm [9 -4.8 0])
   (def screw-offset-tl [7.6 9.5 0]))
 (when (and (= nrows 5) (= ncols 6))
-  (def screw-offset-tr [-6 6.2 0])
-  (def screw-offset-tm [7.9 -5.3 0])
-  (def screw-offset-tl [8.8 9 0]))
+  ; This
+  ; (def screw-offset-tr [-6 6.2 0]) ; v.2
+  ; (def screw-offset-tm [7.9 -5.3 0]) ; v.2
+  ; (def screw-offset-tl [8.8 9 0]) ; v.2
+  (def screw-offset-tr [-6 5 0]) ; v.3
+  (def screw-offset-tm [8.8 -7 0]) ; v.3
+  (def screw-offset-tl [9.6 8.3 0])) ; v.3
 (when (and (= nrows 6) (= ncols 6))
   (def screw-offset-tr [-6 3.5 0])
   (def screw-offset-tm [7 -6.05 0])
@@ -2297,14 +2349,45 @@
 
 (defn screw-insert-all-shapes [bottom-radius top-radius height]
   (union
-   (translate [0 0 screw-insert-ic-height]
-              (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl))
-   (screw-insert 0 lastrow   bottom-radius top-radius height screw-offset-bl)
-   (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br)
-   (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr)
-   (translate [0 0 screw-insert-ic-height]
-              (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm))
-   (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm)))
+   (color RED
+          (translate [0 0 screw-insert-ic-height]
+                     (screw-insert 0 0         bottom-radius top-radius height screw-offset-tl)))
+   (color BLU
+          (screw-insert 0 lastrow   bottom-radius top-radius height screw-offset-bl))
+   (color GRE
+          (screw-insert lastcol lastrow  bottom-radius top-radius height screw-offset-br))
+   (color BLA
+          (screw-insert lastcol 0         bottom-radius top-radius height screw-offset-tr))
+   (color YEL
+          (translate [0 0 screw-insert-ic-height]
+                     (screw-insert (+ 2 innercol-offset) 0         bottom-radius top-radius height screw-offset-tm)))
+   (color CYA
+          (screw-insert (+ 1 innercol-offset) lastrow         bottom-radius top-radius height screw-offset-bm))))
+
+; The amount to rotate the screw cubes around the screw holes so that they connect well to the walls in degrees
+(def screw-cube-rotation-tr 70)
+(def screw-cube-rotation-tm 80)
+(def screw-cube-rotation-tl 120)
+(def screw-cube-rotation-br -20)
+(def screw-cube-rotation-bm -38)
+(def screw-cube-rotation-bl 160)
+
+(defn screw-cubes-all-shapes [width height length]
+  (union
+   (color RED
+          (translate [0 0 screw-insert-ic-height]
+                     (screw-insert-cube 0 0         width height screw-offset-tl length screw-cube-rotation-tl)))
+   (color BLU
+          (screw-insert-cube 0 lastrow   width height screw-offset-bl length screw-cube-rotation-bl))
+   (color GRE
+          (screw-insert-cube lastcol lastrow  width height screw-offset-br length screw-cube-rotation-br))
+   (color BLA
+          (screw-insert-cube lastcol 0         width height screw-offset-tr length screw-cube-rotation-tr))
+   (color YEL
+          (translate [0 0 screw-insert-ic-height]
+                     (screw-insert-cube (+ 2 innercol-offset) 0         width height screw-offset-tm length screw-cube-rotation-tm)))
+   (color CYA
+          (screw-insert-cube (+ 1 innercol-offset) lastrow         width height screw-offset-bm length screw-cube-rotation-bm))))
 
 ; Hole Depth Y: 4.4
 (def screw-insert-height 5)
@@ -2316,7 +2399,10 @@
 
 ; Wall Thickness W:\t1.65
 (def screw-insert-outers (screw-insert-all-shapes (+ screw-insert-bottom-radius 2.2) (+ screw-insert-top-radius 2.2) (+ screw-insert-height 1)))
-(def screw-insert-screw-holes  (screw-insert-all-shapes 1.75 1.75 350))
+(def screw-insert-screw-holes "used for the holes in the bottom plate" (screw-insert-all-shapes 1.75 1.75 350))
+
+(def screw-cube-length "the length that connects to the wall" 5.2)
+(def screw-insert-cubes-wall (screw-cubes-all-shapes  (+ screw-insert-top-radius 2.2) (+ screw-insert-height 1) screw-cube-length))
 
 ; Connectors between outer column and right wall when 1.5u keys are used
 (def pinky-connectors
@@ -2551,26 +2637,6 @@
 ; #################
 ; #################
 
-(defn screw-insert-cube "creates a cube for the screw insert at the given column and row. bottom-radius is "
-  [column row bottom-radius height offset length]
-  (translate [0 0 3]
-             (let [shift-right   (= column lastcol)
-                   shift-left    (= column 0)
-                   shift-up      (and (not (or shift-right shift-left)) (= row 0))
-                   shift-down    (and (not (or shift-right shift-left)) (>= row lastrow))
-                   position      (if shift-up     (key-position column row (map + (wall-locate2  0  1) [0 (/ mount-height 2) 0]))
-                                     (if shift-down  (key-position column row (map - (wall-locate2  0 -2.5) [0 (/ mount-height 2) 0]))
-                                         (if shift-left (map + (left-key-position row 0) (wall-locate3 -1 0))
-                                             (key-position column row (map + (wall-locate2  1  0) [(/ mount-width 2) 0 0])))))]
-               (->> (cube (Math/abs length) (* bottom-radius 2) height :center true)
-                    (translate (map + offset [(+ (first position) (/ length 2)) (second position) (/ height 2)]))))))
-
-(defmacro dbg "Debugging macro to print the value of an expression."
-  [expr]
-  `(let [val# ~expr]
-     (println "dbg:" '~expr "=>" val#)
-     val#))
-
 ; ; (defn rotate-around-point
 ; ;   "Rotate children by angle (in radians) about axis vector v through point pt."
 ; ;   [angle v pt & children]
@@ -2664,10 +2730,24 @@
 
 (def trrs-side-screw-connector-offset "the amount to shift the cube that connects the trrs side screw to the ic holder" -30)
 
+(defn screw-insert-cube-ic-holder "creates a cube for the screw insert at the given column and row. bottom-radius is "
+  [column row bottom-radius height offset length]
+  (translate [0 0 3]
+             (let [shift-right   (= column lastcol)
+                   shift-left    (= column 0)
+                   shift-up      (and (not (or shift-right shift-left)) (= row 0))
+                   shift-down    (and (not (or shift-right shift-left)) (>= row lastrow))
+                   position      (if shift-up     (key-position column row (map + (wall-locate2  0  1) [0 (/ mount-height 2) 0]))
+                                     (if shift-down  (key-position column row (map - (wall-locate2  0 -2.5) [0 (/ mount-height 2) 0]))
+                                         (if shift-left (map + (left-key-position row 0) (wall-locate3 -1 0))
+                                             (key-position column row (map + (wall-locate2  1  0) [(/ mount-width 2) 0 0])))))]
+               (->> (cube (Math/abs length) (* bottom-radius 2) height :center true)
+                    (translate (map + offset [(+ (first position) (/ length 2)) (second position) (/ height 2)]))))))
+
 (defn screw-insert-cubes "the cubes that connect the screw holes to the ic holder. now only the ic-side is used"
   [bottom-radius height]
   (union
-   (color RED (screw-insert-cube 0 0         bottom-radius height screw-offset-tl 10))))
+   (color RED (screw-insert-cube-ic-holder 0 0         bottom-radius height screw-offset-tl 10))))
    ; (color GRE
    ;        ; (translate [(/ trrs-side-screw-connector-offset 2) 0 0]
    ;        (rotate (deg2rad 10) [0 0 1]
@@ -3003,10 +3083,17 @@
                              case-walls))
 
                            (cut
-                            case-walls)
+                            case-walls))))))
 
-                           (cut
-                            screw-insert-screw-holes))))))
+                           ; (cut
+                           ;  (translate [0 0 -3]
+                           ;             screw-insert-screw-holes))
+                           ;
+                           ; (cut
+                           ;  (screw-insert-all-shapes 4.25 1.75 2))
+                           ; (cut
+                           ;  (translate [0 0 -3]
+                           ;             (screw-insert-all-shapes 4.25 1.75 2))))))))
 
 (defn plate-pad [offset]
   (translate offset
@@ -3059,10 +3146,17 @@
                    (extrude-linear {:height 3 :center false}
                                    model-right-plate)
 
-                   (translate [0 0 0]
-                              (screw-insert-all-shapes 3.25 1.75 2))
+                   ; (translate [0 0 -0.01]
+                   (screw-insert-all-shapes 4.25 1.75 2)
+                   (translate [0 0 -3.01]
+                              (screw-insert-all-shapes 4.25 1.75 2))
 
-                   (screw-insert-all-shapes 3 3 1)))))
+                   (translate [0 0 -3]
+                              screw-insert-screw-holes)))))
+
+                   ; (screw-insert-all-shapes 3 3 1)
+                   ; (translate [0 0 -3]
+                   ;            (screw-insert-all-shapes 3 3 1))))))
                    ; plate-pads-together))))
 
 ;;;;;;;;;;;;;;;;
@@ -3096,6 +3190,7 @@
     thumb-type
     thumb-connector-type
     case-walls
+    screw-insert-cubes-wall
     (translate [0 0 3]
                screw-insert-outers))
 
@@ -3123,6 +3218,7 @@
             inner-connectors
             thumb-type-left
             thumb-connector-type
+            screw-insert-cubes-wall
             case-walls
             (translate [0 0 3]
                        screw-insert-outers))
@@ -3141,9 +3237,9 @@
 
 (write-scad-file "right-ic" ic-fixture)
 ;
-(write-scad-file "left-ic"
-                 (mirror [1 0 0]
-                         ic-fixture))
+; (write-scad-file "left-ic"
+;                  (mirror [1 0 0]
+;                          ic-fixture))
 
 ; (write-scad-file "right-rest" hand-rest-final)
 ; (write-scad-file "left-rest"
@@ -3152,13 +3248,16 @@
 
 (write-scad-file "right" model-right)
 
-(write-scad-file "left" model-left)
+; (write-scad-file "left" model-left)
 
 (write-scad-file "right-debug"
                  (union
                   model-right
                   ic-fixture
+                  ; debug-rotate
                   usb-hole-translate-debug))
+                  ; (rotate [0 (deg2rad 180) (deg2rad 180)]
+                  ;         (plate-printed 0))))
 
 ; (write-scad-file "left-debug"
 ;                  (union
@@ -3167,10 +3266,10 @@
 ;                           ic-fixture
 ;                           usb-hole-translate-debug)))
 
-(write-scad-file "right-plate"
-                 (plate-printed 0))
+; (write-scad-file "right-plate"
+;                  (plate-printed 0))
 
-(write-scad-file "left-plate"
-                 (plate-printed 1))
+; (write-scad-file "left-plate"
+;                  (plate-printed 1))
 
 (defn -main [dum] 1)  ; dummy to make it easier to batch
