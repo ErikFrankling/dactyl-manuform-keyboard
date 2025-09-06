@@ -1,6 +1,7 @@
 (ns dactyl
   (:refer-clojure :exclude [use import])
   (:require [clojure.core.matrix :refer [array matrix mmul]]
+            ; [clojure.core.math :refer sqrt]
             [scad-clj.scad :refer :all] ; needed so we can change the generation to work with the :fill method
             [scad-clj.model :refer :all]
             [unicode-math.core :refer [π]]
@@ -2550,6 +2551,13 @@
 (def ic-backwall-nobb-depth (+ 1.5 ic-border))
 (def ic-backwall-nobb-height 1)
 
+(def ic-sidewall-nobb-width "The width of the nobbs that hold the front of the ic in place" (/ 1 (Math/sqrt 2)))
+(def ic-sidewall-nobb-depth 4)
+(def ic-sidewall-nobb-height (/ 1 (Math/sqrt 2)))
+(def ic-sidewall-nobb-rotation (deg2rad 45))
+; (def ic-sidewall-nobb-offset "how far to move the sidewall nobbs up so that they are at the right height" (- (/ ic-sidewall-nobb-width 2) (/ ic-sidewall-nobb-width (Math/sqrt 2))))
+(def ic-sidewall-nobb-offset "how far to move the sidewall nobbs up so that they are at the right height" 0)
+
 (def ic-fixture-holder
   (union
    (translate [0 0 (/ (+ ic-height ic-border) 2)]
@@ -2562,7 +2570,14 @@
                 ; A little petrusion at the back of the ic holder so it can not lift up
                (translate [0 (- (/ ic-backwall-nobb-depth 2) ic-depth ic-border) (+ (/ ic-backwall-nobb-height -2) ic-bottom-extra-thickness ic-border)]
                ; (translate [0 (- (/ ic-backwall-nobb-depth 2) ic-depth ic-border) (+ ic-backwall-nobb-space (/ 2 (+ ic-border ic-bottom-extra-thickness ic-height)))]
-                          (cube ic-backwall-nobb-width ic-backwall-nobb-depth ic-backwall-nobb-height))))))
+                          (cube ic-backwall-nobb-width ic-backwall-nobb-depth ic-backwall-nobb-height))
+               ; two small petrusions at the front of the ic holder so the ic can not move upwards
+               (translate [(/ ic-width 2) (/ ic-sidewall-nobb-depth -2) (+ (+ (/ ic-backwall-nobb-height -2) ic-bottom-extra-thickness ic-border) ic-sidewall-nobb-offset)]
+                          (rotate [0 ic-sidewall-nobb-rotation 0]
+                                  (cube ic-sidewall-nobb-width ic-sidewall-nobb-depth ic-sidewall-nobb-height)))
+               (translate [(/ ic-width -2) (/ ic-sidewall-nobb-depth -2) (+ (+ (/ ic-backwall-nobb-height -2) ic-bottom-extra-thickness ic-border) ic-sidewall-nobb-offset)]
+                          (rotate [0 ic-sidewall-nobb-rotation 0]
+                                  (cube ic-sidewall-nobb-width ic-sidewall-nobb-depth ic-sidewall-nobb-height)))))))
 
    ; (translate [(+ (/ (+ ic-width trrs-width) 2) (* 1 ic-border)) 0 (/ (+ trrs-height ic-border) 2)]
    ;            (difference
