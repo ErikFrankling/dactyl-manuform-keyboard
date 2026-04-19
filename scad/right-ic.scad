@@ -4,24 +4,24 @@ union () {
       translate ([0, 0, 3]) {
         union () {
           difference () {
-            translate ([0, -19.05, 0]) {
-              cube ([22.65, 38.1, 6], center=true);
+            translate ([0, -39/2, 0]) {
+              cube ([22.65, 39, 6], center=true);
             }
             translate ([0, 0, 1]) {
-              translate ([0, -18.05, 1]) {
+              translate ([0, -37/2, 1]) {
                 union () {
-                  cube ([18.65, 36.1, 4], center=true);
+                  cube ([18.65, 37, 4], center=true);
                   translate ([7.574999999999999, 0, -2.825]) {
-                    cube ([3.5, 36.1, 1.65], center=true);
+                    cube ([3.5, 37, 1.65], center=true);
                   }
                   translate ([-7.574999999999999, 0, -2.825]) {
-                    cube ([3.5, 36.1, 1.65], center=true);
+                    cube ([3.5, 37, 1.65], center=true);
                   }
                 }
               }
             }
           }
-          translate ([0, -36.35, 5/2]) {
+          translate ([0, -37.25, 5/2]) {
             cube ([10, 3.5, 1], center=true);
           }
           translate ([9.325, -2, 5/2]) {
@@ -16021,8 +16021,8 @@ union () {
               translate ([-44.88668488875595, 55.83803380044325, 3]) {
                 union () {
                   translate ([0, 0, 3]) {
-                    translate ([0, -19.05, 0]) {
-                      cube ([22.65, 38.1, 6], center=true);
+                    translate ([0, -39/2, 0]) {
+                      cube ([22.65, 39, 6], center=true);
                     }
                   }
                 }
@@ -16031,8 +16031,8 @@ union () {
                 translate ([-44.88668488875595, 55.83803380044325, 3]) {
                   union () {
                     translate ([0, 0, 3]) {
-                      translate ([0, -19.05, 0]) {
-                        cube ([22.65, 38.1, 6], center=true);
+                      translate ([0, -39/2, 0]) {
+                        cube ([22.65, 39, 6], center=true);
                       }
                     }
                   }
@@ -16042,8 +16042,8 @@ union () {
                 translate ([-44.88668488875595, 55.83803380044325, 3]) {
                   union () {
                     translate ([0, 0, 3]) {
-                      translate ([0, -19.05, 0]) {
-                        cube ([22.65, 38.1, 6], center=true);
+                      translate ([0, -39/2, 0]) {
+                        cube ([22.65, 39, 6], center=true);
                       }
                     }
                   }
@@ -31986,14 +31986,14 @@ union () {
       translate ([-44.88668488875595, 55.83803380044325, 3]) {
         union () {
           translate ([0, 0, 3]) {
-            translate ([0, -18.05, 1]) {
+            translate ([0, -37/2, 1]) {
               union () {
-                cube ([18.65, 36.1, 4], center=true);
+                cube ([18.65, 37, 4], center=true);
                 translate ([7.574999999999999, 0, -2.825]) {
-                  cube ([3.5, 36.1, 1.65], center=true);
+                  cube ([3.5, 37, 1.65], center=true);
                 }
                 translate ([-7.574999999999999, 0, -2.825]) {
-                  cube ([3.5, 36.1, 1.65], center=true);
+                  cube ([3.5, 37, 1.65], center=true);
                 }
               }
             }

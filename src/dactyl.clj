@@ -2485,7 +2485,8 @@
 (def ic-bottom-extra-thickness "the thickness of the bottom plate is to small at the solder chanels so i need to add some extra thickness" 1)
 
 ; (def ic-depth "how long the ic is" 37) ; v.3
-(def ic-depth "how long the ic is" 36.1) ; v.4
+; (def ic-depth "how long the ic is" 36.1) ; v.4
+(def ic-depth "how long the ic is" 37) ; v.5
 ; (def ic-width "how wide the ic is" 18.7) ; v.2
 (def ic-width "how wide the ic is" 18.65) ; v.3
 (def ic-height "how high the walls around the ic is" (+ 3 ic-bottom-extra-thickness))
@@ -3251,10 +3252,10 @@
                     ; wrist-attach-case
 
 (write-scad-file "right-ic" ic-fixture)
-;
-; (write-scad-file "left-ic"
-;                  (mirror [1 0 0]
-;                          ic-fixture))
+
+(write-scad-file "left-ic"
+                 (mirror [1 0 0]
+                         ic-fixture))
 
 ; (write-scad-file "right-rest" hand-rest-final)
 ; (write-scad-file "left-rest"
@@ -3263,16 +3264,16 @@
 
 (write-scad-file "right" model-right)
 
-; (write-scad-file "left" model-left)
+(write-scad-file "left" model-left)
 
-(write-scad-file "right-debug"
-                 (union
-                  model-right
-                  ic-fixture
-                  ; debug-rotate
-                  usb-hole-translate-debug))
-                  ; (rotate [0 (deg2rad 180) (deg2rad 180)]
-                  ;         (plate-printed 0))))
+; (write-scad-file "right-debug"
+;                  (union
+;                   model-right
+;                   ic-fixture
+;                   ; debug-rotate
+;                   usb-hole-translate-debug))
+;                   ; (rotate [0 (deg2rad 180) (deg2rad 180)]
+;                   ;         (plate-printed 0))))
 
 ; (write-scad-file "left-debug"
 ;                  (union
@@ -3281,10 +3282,10 @@
 ;                           ic-fixture
 ;                           usb-hole-translate-debug)))
 
-; (write-scad-file "right-plate"
-;                  (plate-printed 0))
+(write-scad-file "right-plate"
+                 (plate-printed 0))
 
-; (write-scad-file "left-plate"
-;                  (plate-printed 1))
+(write-scad-file "left-plate"
+                 (plate-printed 1))
 
 (defn -main [dum] 1)  ; dummy to make it easier to batch
